@@ -4,6 +4,6 @@ metadata:
   name: golden-path-templates
 spec:
   targets:
-    - ./java-templates/java-springboot-ms/template.yaml
+    - ./java-templates/java25-template/template.yaml
     - ./java-templates/gcp-cloudfunction-java-template/template.yaml
-    - ./node-templates/node-app/template.yaml
+    - ./nodejs-templates/node-app/template.yaml
