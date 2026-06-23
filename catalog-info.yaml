@@ -1,0 +1,9 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: golden-path-templates
+spec:
+  targets:
+    - ./java-templates/java-springboot-ms/template.yaml
+    - ./java-templates/gcp-cloudfunction-java-template/template.yaml
+    - ./node-templates/node-app/template.yaml

@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.repoName }}
+  description: GCP Cloud Function - ${{ values.functionName }}
+  annotations:
+    github.com/project-slug: ${{ values.repoOwner }}/${{ values.repoName }}
+    backstage.io/techdocs-ref: dir:.
+    google.com/cloud-function-name: ${{ values.functionName }}
+    google.com/cloud-project-id: ${{ values.gcpProjectId }}
+    google.com/cloud-region: ${{ values.gcpRegion }}
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:default/guest

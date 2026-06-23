@@ -1,0 +1,140 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: gcp-cloudfunction-java-template
+  title: GCP Cloud Function (Java)
+  description: Create a Google Cloud Function in Java with CI/CD, TechDocs, and Backstage catalog registration
+  tags:
+    - java
+    - gcp
+    - cloud-function
+    - serverless
+
+spec:
+  owner: user:default/guest
+  type: service
+
+  parameters:
+    - title: Service Details
+      required:
+        - repoOwner
+        - repoName
+        - functionName
+        - gcpProjectId
+        - gcpRegion
+      properties:
+        repoOwner:
+          title: Repository Owner
+          type: string
+          description: GitHub organization or username
+          default: devops-champ
+          ui:autofocus: true
+
+        repoName:
+          title: Repository Name
+          type: string
+          description: Name of the GitHub repository (lowercase recommended)
+
+        functionName:
+          title: Cloud Function Name
+          type: string
+          description: Name of the deployed GCP Cloud Function (lowercase, hyphens allowed)
+
+        gcpProjectId:
+          title: GCP Project ID
+          type: string
+          description: Your Google Cloud project ID
+
+        gcpRegion:
+          title: GCP Region
+          type: string
+          description: Region to deploy the Cloud Function
+          default: us-central1
+          enum:
+            - us-central1
+            - us-east1
+            - us-west1
+            - europe-west1
+            - asia-east1
+
+        javaRuntime:
+          title: Java Runtime
+          type: string
+          description: Java version for the Cloud Function runtime
+          default: java21
+          enum:
+            - java21
+            - java17
+          enumNames:
+            - Java 21 (Recommended)
+            - Java 17
+
+        triggerType:
+          title: Trigger Type
+          type: string
+          description: How the Cloud Function will be triggered
+          default: http
+          enum:
+            - http
+            - pubsub
+          enumNames:
+            - HTTP (REST endpoint)
+            - Pub/Sub (event-driven)
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/*
+        values:
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName | lower }}
+          functionName: ${{ parameters.functionName | lower }}
+          gcpProjectId: ${{ parameters.gcpProjectId }}
+          gcpRegion: ${{ parameters.gcpRegion }}
+          javaRuntime: ${{ parameters.javaRuntime }}
+          triggerType: ${{ parameters.triggerType }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
+        defaultBranch: main
+        repoVisibility: public
+        description: GCP Cloud Function - ${{ parameters.functionName }}
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - user:default/guest
+        title: "Cloud Function template executed"
+        info: "GCP Cloud Function '${{ parameters.functionName }}' repository has been created successfully"
+        severity: normal
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: GitHub Actions
+        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions/workflows/ci.yml
+      - title: GCP Console
+        url: https://console.cloud.google.com/functions/list?project=${{ parameters.gcpProjectId }}
+      - title: Sonar Dashboard
+        url: https://sonarcloud.io/project/overview?id=${{ parameters.repoName }}
