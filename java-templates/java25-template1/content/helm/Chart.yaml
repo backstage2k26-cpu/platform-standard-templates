@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ${{ values.repoName }}
+description: Helm chart for ${{ values.repoName }}
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
