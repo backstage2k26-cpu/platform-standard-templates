@@ -6,6 +6,8 @@ metadata:
   annotations:
     github.com/project-slug: ${{ values.repoOwner }}/${{ values.repoName }}
     backstage.io/techdocs-ref: dir:.
+    sonarqube.org/project-key: devops-champ_${{ values.repoName }}
+    jenkins.io/job-full-name: devops-champ/${{ values.repoName }}/main
 spec:
   type: service
   lifecycle: experimental

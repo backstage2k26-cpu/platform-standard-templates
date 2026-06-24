@@ -4,7 +4,10 @@ metadata:
   name: java25-template
   title: Java 25 Template
   description: Create a Java 25 service repository in GitHub
- 
+  tags:
+    - java
+    - jenkins
+    - Sonarqube
 spec:
   owner: user:default/guest
   type: service
@@ -74,5 +77,5 @@ spec:
         entityRef: ${{ steps.register.output.entityRef }}
       - title: Sonar Dashboard
         url: https://sonarcloud.io/project/overview?id=${{ parameters.repoName }}
-      - title: GitHub Actions
-        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions/workflows/ci.yml
+      - title: Jenkins
+        url: http://localhost:9090/job/devops-champ/job/${{ parameters.repoName }}/job/main

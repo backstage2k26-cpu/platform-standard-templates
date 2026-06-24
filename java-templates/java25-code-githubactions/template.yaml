@@ -4,7 +4,10 @@ metadata:
   name: java25-code-githubactions
   title: Java 25 Code GitHub Actions Template
   description: Create a Java 25 service repository in GitHub with GitHub Actions
-
+  tags:
+    - java
+    - github-actions
+    - Sonarqube
 spec:
   owner: user:default/guest
   type: service
