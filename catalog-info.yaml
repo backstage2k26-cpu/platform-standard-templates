@@ -7,4 +7,4 @@ spec:
     - ./java-templates/java25-template/template.yaml
     - ./java-templates/gcp-cloudfunction-java-template/template.yaml
     - ./nodejs-templates/node-app/template.yaml
-    - ./java-templates/java25-template1/template.yaml
+    - ./java-templates/java25-code-githubactions/template.yaml
