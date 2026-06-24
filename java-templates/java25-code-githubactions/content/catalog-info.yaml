@@ -11,7 +11,7 @@ metadata:
 spec:
   type: service
   lifecycle: experimental
-  owner: group:default:platform-team
+  owner: group:default/platform-team
   dependsOn:
     - component:default/payment-service
     - component:default/user-service
