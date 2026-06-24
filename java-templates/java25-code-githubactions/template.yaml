@@ -1,10 +1,10 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: java25-template
-  title: Java 25 Template
-  description: Create a Java 25 service repository in GitHub
- 
+  name: java25-code-githubactions
+  title: Java 25 Code GitHub Actions Template
+  description: Create a Java 25 service repository in GitHub with GitHub Actions
+
 spec:
   owner: user:default/guest
   type: service
