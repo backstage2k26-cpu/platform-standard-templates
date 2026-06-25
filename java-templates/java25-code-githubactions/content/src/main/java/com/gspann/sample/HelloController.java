@@ -21,6 +21,6 @@ public class HelloController {
 
     @GetMapping("/hello")
     public String hello() {
-        return "Hellow World , Env: " + environmentName;
+        return "Hellow GSPANN , Env: " + environmentName;
     }
 }
