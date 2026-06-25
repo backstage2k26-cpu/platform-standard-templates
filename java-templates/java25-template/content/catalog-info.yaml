@@ -7,10 +7,11 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     sonarqube.org/project-key: devops-champ_${{ values.repoName }}
     jenkins.io/job-full-name: devops-champ/${{ values.repoName }}/main
+    argocd/app-name: guestbook
 spec:
   type: service
   lifecycle: experimental
-  owner: user:default/guest
+  owner: ${{ values.owner }}
   dependsOn:
     - component:default/payment-service
     - component:default/user-service
