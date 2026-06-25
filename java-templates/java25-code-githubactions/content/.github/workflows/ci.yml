@@ -143,8 +143,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
         run: |
           PROJECT_KEY="devops-champ_${{ github.event.repository.name }}"
-      
-          mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
+
+          mvn clean verify sonar:sonar \
             -Dsonar.projectKey=${PROJECT_KEY} \
             -Dsonar.organization=devops-champ \
             -Dsonar.host.url=https://sonarcloud.io \
