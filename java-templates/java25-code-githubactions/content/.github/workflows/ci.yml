@@ -128,20 +128,24 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
         run: |
+          PROJECT_KEY="devops-champ_${{ github.event.repository.name }}"
+      
           curl -u "${SONAR_TOKEN}:" \
             -X POST \
             "https://sonarcloud.io/api/projects/create" \
             -d "organization=devops-champ" \
-            -d "project=${{ github.event.repository.name }}" \
-            -d "name=${{ github.event.repository.name }}"
+            -d "project=${PROJECT_KEY}" \
+            -d "name=${PROJECT_KEY}"
         continue-on-error: true
-
+      
       - name: Sonar Scan
         env:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
         run: |
+          PROJECT_KEY="devops-champ_${{ github.event.repository.name }}"
+      
           mvn org.sonarsource.scanner.maven:sonar-maven-plugin:4.0.0.4121:sonar \
-            -Dsonar.projectKey=${{ github.event.repository.name }} \
+            -Dsonar.projectKey=${PROJECT_KEY} \
             -Dsonar.organization=devops-champ \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=$SONAR_TOKEN
