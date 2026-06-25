@@ -1,4 +1,4 @@
-package main.java.com.gspann.sample;
+package com.gspann.sample;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
