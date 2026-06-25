@@ -1,4 +1,4 @@
-package main.java.com.gspann.sample;
+package com.gspann.sample;
 
 import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
