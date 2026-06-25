@@ -42,6 +42,7 @@ spec:
         values:
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName | lower }}
+          owner: ${{ parameters.owner }}
 
     - id: publish
       name: Publish to GitHub
