@@ -1,4 +1,4 @@
-package test.java.com.gspann.sample;
+package com.gspann.sample;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
