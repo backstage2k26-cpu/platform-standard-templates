@@ -7,7 +7,7 @@ metadata:
   tags:
     - java
     - jenkins
-    - Sonarqube
+    - sonarqube
 spec:
   owner: user:default/guest
   type: service
