@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'backstage2026/${{ values.repoName }}'
+        DOCKER_REPO = 'backstage2026'
     }
 
     stages {
@@ -26,12 +26,16 @@ pipeline {
                     env.NEW_VERSION =
                         "${parts[0]}.${parts[1]}.${parts[2].toInteger() + 1}"
 
-                    echo "Version = ${env.NEW_VERSION}"
+                    env.IMAGE_NAME =
+                        "${DOCKER_REPO}/${env.JOB_BASE_NAME}"
+
+                    echo "Current Version : ${version}"
+                    echo "New Version     : ${env.NEW_VERSION}"
 
                     sh """
                         mvn versions:set \
-                        -DnewVersion=${env.NEW_VERSION} \
-                        -DgenerateBackupPoms=false
+                          -DnewVersion=${env.NEW_VERSION} \
+                          -DgenerateBackupPoms=false
                     """
                 }
             }
@@ -41,22 +45,30 @@ pipeline {
             steps {
                 sh 'mvn clean verify'
             }
+
+            post {
+                success {
+                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                }
+            }
         }
 
         stage('Sonar Scan') {
             steps {
+
                 withCredentials([
                     string(
                         credentialsId: 'SONAR_TOKEN',
                         variable: 'SONAR_TOKEN'
                     )
                 ]) {
+
                     sh """
-                        mvn clean verify sonar:sonar \
-                        -Dsonar.projectKey=devops-champ_${{ values.repoName }} \
-                        -Dsonar.organization=devops-champ \
-                        -Dsonar.host.url=https://sonarcloud.io \
-                        -Dsonar.token=${SONAR_TOKEN}
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=devops-champ_${env.JOB_BASE_NAME} \
+                          -Dsonar.organization=devops-champ \
+                          -Dsonar.host.url=https://sonarcloud.io \
+                          -Dsonar.token=${SONAR_TOKEN}
                     """
                 }
             }
@@ -77,21 +89,17 @@ pipeline {
 
                 script {
 
-                    def VERSION = env.NEW_VERSION
-
-                    echo "Building version ${VERSION}"
-
                     sh """
                         docker build \
-                        -t ${env.IMAGE_NAME}:${VERSION} \
-                        -t ${env.IMAGE_NAME}:latest .
+                          -t ${env.IMAGE_NAME}:${env.NEW_VERSION} \
+                          -t ${env.IMAGE_NAME}:latest .
                     """
 
                     sh """
                         docker save \
-                        -o image.tar \
-                        ${env.IMAGE_NAME}:${VERSION} \
-                        ${env.IMAGE_NAME}:latest
+                          -o image.tar \
+                          ${env.IMAGE_NAME}:${env.NEW_VERSION} \
+                          ${env.IMAGE_NAME}:latest
                     """
                 }
             }
@@ -110,8 +118,8 @@ pipeline {
 
                     sh '''
                         echo "$DOCKER_PASS" | docker login \
-                        -u "$DOCKER_USER" \
-                        --password-stdin
+                            -u "$DOCKER_USER" \
+                            --password-stdin
                     '''
                 }
             }
@@ -120,28 +128,24 @@ pipeline {
         stage('Docker Push') {
             steps {
 
-                script {
+                sh 'docker load -i image.tar'
 
-                    def VERSION = env.NEW_VERSION
-
-                    sh 'docker load -i image.tar || true'
-
-                    sh """
-                        docker push ${env.IMAGE_NAME}:${VERSION}
-                        docker push ${env.IMAGE_NAME}:latest
-                    """
-                }
+                sh """
+                    docker push ${env.IMAGE_NAME}:${env.NEW_VERSION}
+                    docker push ${env.IMAGE_NAME}:latest
+                """
             }
         }
     }
 
     post {
+
         success {
-            echo 'Pipeline completed successfully'
+            echo "Pipeline completed successfully."
         }
 
         failure {
-            echo 'Pipeline failed'
+            echo "Pipeline failed."
         }
 
         always {
