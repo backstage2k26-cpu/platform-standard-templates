@@ -6,7 +6,7 @@ metadata:
   annotations:
     github.com/project-slug: ${{ values.repoOwner }}/${{ values.repoName }}
     backstage.io/techdocs-ref: dir:.
-    sonarqube.org/project-key: ${{ values.repoName }}
+    sonarqube.org/project-key: devops-champ_${{ values.repoName }}
     argocd/app-name: guestbook #devops-champ_${{ values.repoName }}
 spec:
   type: service
