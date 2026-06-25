@@ -6,8 +6,8 @@ metadata:
   description: Create a Java 25 service repository in GitHub with GitHub Actions
   tags:
     - java
-    - github-actions
-    - Sonarqube
+    - githubactions
+    - sonarqube
 spec:
   owner: user:default/guest
   type: service
