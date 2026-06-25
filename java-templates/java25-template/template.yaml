@@ -17,6 +17,7 @@ spec:
       required:
         - repoOwner
         - repoName
+        - owner
       properties:
         repoOwner:
           title: Repository Owner
