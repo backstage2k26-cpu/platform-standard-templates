@@ -119,8 +119,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
         run: |
-          if [ -z "$GIT_SONAR_TOKEN" ]; then
-            echo "GIT_SONAR_TOKEN is missing"
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "SONAR_TOKEN is missing"
             exit 1
           fi
 
@@ -128,7 +128,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
         run: |
-          curl -u "${GIT_SONAR_TOKEN}:" \
+          curl -u "${SONAR_TOKEN}:" \
             -X POST \
             "https://sonarcloud.io/api/projects/create" \
             -d "organization=devops-champ" \
@@ -144,7 +144,7 @@ jobs:
             -Dsonar.projectKey=${{ github.event.repository.name }} \
             -Dsonar.organization=devops-champ \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=$GIT_SONAR_TOKEN
+            -Dsonar.token=$SONAR_TOKEN
 
   # ==========================
   # DOCKER BUILD
