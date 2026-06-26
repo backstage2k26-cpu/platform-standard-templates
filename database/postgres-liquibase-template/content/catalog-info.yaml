@@ -1,0 +1,12 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: ${{ values.repoName }}
+  description: PostgreSQL schema migrations for ${{ values.databaseName }}
+  tags:
+    - postgres
+    - liquibase
+spec:
+  type: database
+  owner: ${{ values.owner }}
+  system: default

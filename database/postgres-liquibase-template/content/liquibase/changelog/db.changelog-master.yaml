@@ -1,0 +1,5 @@
+databaseChangeLog:
+  - include:
+      file: changelog/changes/001-create-schema.yaml
+  - include:
+      file: changelog/changes/002-create-example-table.yaml

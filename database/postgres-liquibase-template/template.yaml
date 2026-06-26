@@ -1,0 +1,115 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: postgres-liquibase-template
+  title: PostgreSQL Liquibase Template
+  description: Create a PostgreSQL schema migration repository with Docker and Argo CD deployment manifests
+  tags:
+    - postgres
+    - postgresql
+    - liquibase
+    - database
+    - argocd
+spec:
+  owner: user:default/guest
+  type: resource
+
+  parameters:
+    - title: Repository Details
+      required:
+        - repoOwner
+        - repoName
+        - owner
+      properties:
+        repoOwner:
+          title: Repository Owner
+          type: string
+          description: GitHub organization or username
+          default: devops-champ
+          ui:autofocus: true
+
+        repoName:
+          title: Repository Name
+          type: string
+          description: Name of the GitHub repository (lowercase recommended)
+
+        owner:
+          title: Team Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+
+    - title: Database Details
+      required:
+        - databaseName
+        - schemaName
+      properties:
+        databaseName:
+          title: Database Name
+          type: string
+          description: Target PostgreSQL database name
+          default: appdb
+
+        schemaName:
+          title: Schema Name
+          type: string
+          description: PostgreSQL schema managed by Liquibase
+          default: app
+
+        imageRegistry:
+          title: Image Registry
+          type: string
+          description: Container registry used by Argo CD deployments
+          default: ghcr.io/devops-champ
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/*
+        values:
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName | lower }}
+          owner: ${{ parameters.owner }}
+          databaseName: ${{ parameters.databaseName }}
+          schemaName: ${{ parameters.schemaName }}
+          imageRegistry: ${{ parameters.imageRegistry }}
+
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
+        defaultBranch: main
+        repoVisibility: public
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - user:default/guest
+        title: "Template executed"
+        info: "PostgreSQL Liquibase repository has been created successfully"
+        severity: normal
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

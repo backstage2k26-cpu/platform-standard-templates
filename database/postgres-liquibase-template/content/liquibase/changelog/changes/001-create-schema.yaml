@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-schema
+      author: platform
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS ${{ values.schemaName }}
+      rollback:
+        - sql:
+            sql: DROP SCHEMA IF EXISTS ${{ values.schemaName }} CASCADE
