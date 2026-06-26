@@ -81,6 +81,14 @@ spec:
             - HTTP (REST endpoint)
             - Pub/Sub (event-driven)
 
+        owner:
+          title: Team Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+
   steps:
     - id: fetch-base
       name: Fetch Base
