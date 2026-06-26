@@ -17,6 +17,7 @@ spec:
       required:
         - repoOwner
         - repoName
+        - owner
       properties:
         repoOwner:
           title: Repository Owner
@@ -29,6 +30,14 @@ spec:
           title: Repository Name
           type: string
           description: Name of the GitHub repository (lowercase recommended)
+
+        owner:
+          title: Team Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
     
   steps:
     - id: fetch-base
