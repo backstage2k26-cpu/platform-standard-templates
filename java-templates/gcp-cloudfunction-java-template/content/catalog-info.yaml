@@ -9,7 +9,8 @@ metadata:
     google.com/cloud-function-name: ${{ values.functionName }}
     google.com/cloud-project-id: ${{ values.gcpProjectId }}
     google.com/cloud-region: ${{ values.gcpRegion }}
+    argocd/app-name: guestbook
 spec:
   type: service
   lifecycle: experimental
-  owner: user:default/guest
+  owner: user:default/platform-team
