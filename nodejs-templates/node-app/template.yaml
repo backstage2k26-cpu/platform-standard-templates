@@ -47,26 +47,20 @@ spec:
         values:
           name: ${{ parameters.name }}
 
-    # This step publishes the contents of the working directory to GitHub.
-    # If you or your organization prefer another default branch name over 'main'
-    # you can change that here.
-    - id: publish
-      name: Publish
-      action: publish:github
+    - id: submit-request
+      name: Submit Repository Request
+      action: github:repository-request:create-pr
       input:
-        description: This is ${{ parameters.name }}
-        repoUrl: ${{ parameters.repoUrl }}
-        defaultBranch: 'main'
+        targetRepoUrl: ${{ parameters.repoUrl }}
+        description: Node.js service - ${{ parameters.name }}
+        templateName: nodejs-template
+        templateTitle: Node.js Template
+        repoVisibility: public
+        defaultBranch: main
+        catalogInfoPath: /catalog-info.yaml
+        parameters:
+          name: ${{ parameters.name }}
 
-    # The final step is to register our new component in the catalog.
-    - id: register
-      name: Register
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
-        catalogInfoPath: '/catalog-info.yaml'
-
-    # Let's notify the user that the template has completed using the Notification action
     - id: notify
       name: Notify
       action: notification:send
@@ -74,15 +68,16 @@ spec:
         recipients: entity
         entityRefs:
           - user:default/guest
-        title: 'Template executed'
-        info: 'Your template has been executed'
+        title: 'Repository request submitted'
+        info: 'Node.js repository request is pending Platform Team approval'
         severity: 'normal'
 
-  # Outputs are displayed to the user after a successful execution of the template.
   output:
+    text:
+      - title: Request ID
+        content: ${{ steps['submit-request'].output.requestId }}
+      - title: Status
+        content: ${{ steps['submit-request'].output.status }}
     links:
-      - title: Repository
-        url: ${{ steps['publish'].output.remoteUrl }}
-      - title: Open in catalog
-        icon: catalog
-        entityRef: ${{ steps['register'].output.entityRef }}
+      - title: Approval Pull Request
+        url: ${{ steps['submit-request'].output.pullRequestUrl }}

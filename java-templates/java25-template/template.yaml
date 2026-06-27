@@ -52,21 +52,20 @@ spec:
           repoName: ${{ parameters.repoName | lower }}
           owner: ${{ parameters.owner }}
 
-    - id: publish
-      name: Publish to GitHub
-      action: publish:github
+    - id: submit-request
+      name: Submit Repository Request
+      action: github:repository-request:create-pr
       input:
-        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
-        defaultBranch: main
+        repoOwner: ${{ parameters.repoOwner }}
+        repoName: ${{ parameters.repoName | lower }}
+        templateName: java25-template
+        templateTitle: Java 25 Template
         repoVisibility: public
-
-    - id: register
-      name: Register in Catalog
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        defaultBranch: main
         catalogInfoPath: /catalog-info.yaml
- 
+        parameters:
+          owner: ${{ parameters.owner }}
+
     - id: notify
       name: Notify
       action: notification:send
@@ -74,17 +73,19 @@ spec:
         recipients: entity
         entityRefs:
           - user:default/guest
-        title: "Template executed"
-        info: "Java 25 repository has been created successfully"
+        title: "Repository request submitted"
+        info: "Java 25 repository request is pending Platform Team approval"
         severity: normal
 
   output:
+    text:
+      - title: Request ID
+        content: ${{ steps['submit-request'].output.requestId }}
+      - title: Status
+        content: ${{ steps['submit-request'].output.status }}
     links:
-      - title: Repository
-        url: ${{ steps.publish.output.remoteUrl }}
-      - title: Open in Catalog
-        icon: catalog
-        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Approval Pull Request
+        url: ${{ steps['submit-request'].output.pullRequestUrl }}
       - title: Sonar Dashboard
         url: https://sonarcloud.io/project/overview?id=${{ parameters.repoName }}
       - title: Jenkins
