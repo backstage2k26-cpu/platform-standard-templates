@@ -64,7 +64,7 @@ pipeline {
                 ]) {
 
                     sh """
-                        mvn sonar:sonar \
+                        mvn clean verify sonar:sonar \
                           -Dsonar.projectKey=devops-champ_${{ values.repoName }} \
                           -Dsonar.organization=devops-champ \
                           -Dsonar.host.url=https://sonarcloud.io \
