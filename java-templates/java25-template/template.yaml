@@ -17,6 +17,7 @@ spec:
       required:
         - repoOwner
         - repoName
+        - JiraNumber
         - owner
       properties:
         repoOwner:
@@ -31,6 +32,11 @@ spec:
           type: string
           description: Name of the GitHub repository (lowercase recommended)
 
+        JiraNumber:
+          title: Jira Number
+          type: string
+          description: Mention the jira number
+
         owner:
           title: Team Owner
           type: string
@@ -38,7 +44,7 @@ spec:
           ui:options:
             allowedKinds:
               - Group
-    
+
   steps:
     - id: fetch-base
       name: Fetch Base
@@ -50,6 +56,7 @@ spec:
         values:
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName | lower }}
+          JiraNumber: ${{ parameters.JiraNumber }}
           owner: ${{ parameters.owner }}
 
     - id: publish
@@ -66,7 +73,7 @@ spec:
       input:
         repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
- 
+
     - id: notify
       name: Notify
       action: notification:send
