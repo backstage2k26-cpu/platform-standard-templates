@@ -9,6 +9,9 @@ metadata:
     sonarqube.org/project-key: devops-champ_${{ values.repoName }}
     argocd/app-name: guestbook #devops-champ_${{ values.repoName }}
     roadie-backstage-pull-requests/default-filter: "is:open is:pr"
+    platform.io/argocd-dev: guestbook-dev
+    platform.io/argocd-qa: guestbook-qa
+    platform.io/argocd-prod: guestbook-prod
 spec:
   type: service
   lifecycle: experimental

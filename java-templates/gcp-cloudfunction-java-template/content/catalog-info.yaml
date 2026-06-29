@@ -9,7 +9,10 @@ metadata:
     google.com/cloud-function-name: ${{ values.functionName }}
     google.com/cloud-project-id: ${{ values.gcpProjectId }}
     google.com/cloud-region: ${{ values.gcpRegion }}
-    argocd/app-name: guestbook
+    roadie-backstage-pull-requests/default-filter: "is:open is:pr"
+    platform.io/argocd-dev: guestbook-dev
+    platform.io/argocd-qa: guestbook-qa
+    platform.io/argocd-prod: guestbook-prod
 spec:
   type: service
   lifecycle: experimental
