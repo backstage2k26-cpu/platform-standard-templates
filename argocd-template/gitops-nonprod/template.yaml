@@ -40,9 +40,9 @@ spec:
           default: devops-champ
 
         repoName:
-          title: Repository Name
+          title: Application Name
           type: string
-          description: Name of the GitHub repository
+          description: Name of the GitHub Application
 
         imageRegistry:
           title: Image Registry
