@@ -62,4 +62,4 @@ spec:
   output:
     links:
       - title: Generated Files
-        url: ./content
+        url: ./argocd-template/gitops-prod/prod/content

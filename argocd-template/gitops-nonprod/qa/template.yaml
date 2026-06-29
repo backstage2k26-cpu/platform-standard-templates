@@ -62,4 +62,5 @@ spec:
   output:
     links:
       - title: Generated Files
-        url: ./content
+        url: ./argocd-template/gitops-nonprod/qa/content
+        description: "The generated Argo CD manifests for the QA environment"
