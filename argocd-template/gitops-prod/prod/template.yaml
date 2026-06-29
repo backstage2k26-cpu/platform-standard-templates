@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: argocd-template
+  name: argocd-template-prod
   title: Argo CD Template for PROD
   description: Create Argo CD Application manifests for prod
   tags:

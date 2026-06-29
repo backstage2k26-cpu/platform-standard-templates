@@ -1,7 +1,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: argocd-template
+  name: argocd-template-dev
   title: Argo CD Template for DEV
   description: Create Argo CD Application manifests for dev
   tags:
