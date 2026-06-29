@@ -15,20 +15,10 @@ spec:
   parameters:
     - title: Application Details
       required:
-        - targetRepoUrl
         - repoOwner
         - repoName
         - imageRegistry
       properties:
-        targetRepoUrl:
-          title: Target Repository
-          type: string
-          description: GitHub repository that should receive the Argo CD files
-          ui:field: RepoUrlPicker
-          ui:options:
-            allowedHosts:
-              - github.com
-
         repoOwner:
           title: Repository Owner
           type: string
@@ -62,7 +52,7 @@ spec:
       name: Create Pull Request
       action: publish:github:pull-request
       input:
-        repoUrl: ${{ parameters.targetRepoUrl }}
+        repoUrl: github.com?owner=backstage2k26-cpu&repo=gitops-prod
         branchName: argocd/${{ parameters.repoName | lower }}-prod
         title: "Add Argo CD prod manifests for ${{ parameters.repoName | lower }}"
         description: "Generated Argo CD prod deployment files from the template."
