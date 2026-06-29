@@ -1,0 +1,65 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: argocd-template
+  title: Argo CD Template
+  description: Create Argo CD Application manifests for dev, qa, and prod
+  tags:
+    - argocd
+    - gitops
+    - kubernetes
+spec:
+  owner: user:default/guest
+  type: resource
+
+  parameters:
+    - title: Application Details
+      required:
+        - repoOwner
+        - repoName
+        - imageRegistry
+      properties:
+        repoOwner:
+          title: Repository Owner
+          type: string
+          description: GitHub organization or username
+          default: devops-champ
+          ui:autofocus: true
+
+        repoName:
+          title: Repository Name
+          type: string
+          description: Name of the GitHub repository
+
+        imageRegistry:
+          title: Image Registry
+          type: string
+          description: Container registry for the application image
+          default: ghcr.io/devops-champ
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./content
+        values:
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName | lower }}
+          imageRegistry: ${{ parameters.imageRegistry }}
+
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - user:default/guest
+        title: "Template executed"
+        info: "Argo CD manifests have been created successfully"
+        severity: normal
+
+  output:
+    links:
+      - title: Generated Files
+        url: ./content
