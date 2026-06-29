@@ -11,4 +11,4 @@ spec:
     - ./database/postgres-liquibase-template/template.yaml
     - ./argocd-template/gitops-nonprod/dev/template.yaml
     - ./argocd-template/gitops-nonprod/qa/template.yaml
-    - ./argocd-template/gitops-nonprod/prod/template.yaml
+    - ./argocd-template/gitops-prod/prod/template.yaml
