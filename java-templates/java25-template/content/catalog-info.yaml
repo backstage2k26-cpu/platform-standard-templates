@@ -12,12 +12,11 @@ metadata:
     platform.io/argocd-dev: guestbook-dev
     platform.io/argocd-qa: guestbook-qa
     platform.io/argocd-prod: guestbook-prod
+    platform.io/jira: ${{ values.JiraNumber }}
 spec:
   type: service
   lifecycle: experimental
   owner: ${{ values.owner }}
   dependsOn:
-    - component:default/payment-service
-    - component:default/user-service
     - resource:default/orders-db
     - resource:default/kafka-cluster
