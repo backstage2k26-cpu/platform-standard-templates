@@ -2,8 +2,8 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: argocd-template
-  title: Argo CD Template
-  description: Create Argo CD Application manifests for dev, qa, and prod
+  title: Argo CD Template for PROD
+  description: Create Argo CD Application manifests for prod
   tags:
     - argocd
     - gitops
@@ -15,10 +15,20 @@ spec:
   parameters:
     - title: Application Details
       required:
+        - targetRepoUrl
         - repoOwner
         - repoName
         - imageRegistry
       properties:
+        targetRepoUrl:
+          title: Target Repository
+          type: string
+          description: GitHub repository that should receive the Argo CD files
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+
         repoOwner:
           title: Repository Owner
           type: string
@@ -48,18 +58,17 @@ spec:
           repoName: ${{ parameters.repoName | lower }}
           imageRegistry: ${{ parameters.imageRegistry }}
 
-    - id: notify
-      name: Notify
-      action: notification:send
+    - id: publish-pr
+      name: Create Pull Request
+      action: publish:github:pull-request
       input:
-        recipients: entity
-        entityRefs:
-          - user:default/guest
-        title: "Template executed"
-        info: "Argo CD manifests have been created successfully"
-        severity: normal
+        repoUrl: ${{ parameters.targetRepoUrl }}
+        branchName: argocd/${{ parameters.repoName | lower }}-prod
+        title: "Add Argo CD prod manifests for ${{ parameters.repoName | lower }}"
+        description: "Generated Argo CD prod deployment files from the template."
+        sourcePath: .
 
   output:
     links:
-      - title: Generated Files
-        url: ./argocd-template/gitops-prod/prod/content
+      - title: Pull Request
+        url: ${{ steps.publish-pr.output.remoteUrl }}
