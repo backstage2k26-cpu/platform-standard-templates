@@ -9,4 +9,6 @@ spec:
     - ./nodejs-templates/node-app/template.yaml
     - ./java-templates/java25-code-githubactions/template.yaml
     - ./database/postgres-liquibase-template/template.yaml
-    - ./argocd-template/template.yaml
+    - ./argocd-template/gitops-nonprod/dev/template.yaml
+    - ./argocd-template/gitops-nonprod/qa/template.yaml
+    - ./argocd-template/gitops-nonprod/prod/template.yaml
