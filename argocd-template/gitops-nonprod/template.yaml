@@ -18,6 +18,7 @@ spec:
         - environment
         - repoOwner
         - repoName
+        - imageTag
         - imageRegistry
       properties:
         environment:
@@ -49,6 +50,12 @@ spec:
           description: Container registry for the application image
           default: ghcr.io/devops-champ
 
+        imageTag:
+          title: Image Tag
+          type: string
+          description: Image tag to deploy in the selected non-prod environment
+          default: latest
+
   steps:
     - id: fetch-base
       name: Fetch Base
@@ -59,6 +66,7 @@ spec:
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName | lower }}
           imageRegistry: ${{ parameters.imageRegistry }}
+          imageTag: ${{ parameters.imageTag }}
           environment: ${{ parameters.environment }}
 
     - id: publish-pr
