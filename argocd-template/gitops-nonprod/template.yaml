@@ -1,9 +1,9 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: argocd-template-qa
-  title: Argo CD Template for QA
-  description: Create Argo CD Application manifests for qa
+  name: argocd-template-nonprod
+  title: Argo CD Template for Non-Prod
+  description: Create Argo CD Application manifests for dev or qa
   tags:
     - argocd
     - gitops
@@ -15,16 +15,28 @@ spec:
   parameters:
     - title: Application Details
       required:
+        - environment
         - repoOwner
         - repoName
         - imageRegistry
       properties:
+        environment:
+          title: Environment
+          type: string
+          description: Select the non-prod environment
+          enum:
+            - dev
+            - qa
+          enumNames:
+            - DEV
+            - QA
+          ui:autofocus: true
+
         repoOwner:
           title: Repository Owner
           type: string
           description: GitHub organization or username
           default: devops-champ
-          ui:autofocus: true
 
         repoName:
           title: Repository Name
@@ -47,15 +59,16 @@ spec:
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName | lower }}
           imageRegistry: ${{ parameters.imageRegistry }}
+          environment: ${{ parameters.environment }}
 
     - id: publish-pr
       name: Create Pull Request
       action: publish:github:pull-request
       input:
         repoUrl: github.com?owner=backstage2k26-cpu&repo=gitops-nonprod
-        branchName: argocd/${{ parameters.repoName | lower }}-qa
-        title: "Add Argo CD qa manifests for ${{ parameters.repoName | lower }}"
-        description: "Generated Argo CD qa deployment files from the template."
+        branchName: argocd/${{ parameters.repoName | lower }}-${{ parameters.environment }}
+        title: "Add Argo CD ${{ parameters.environment }} manifests for ${{ parameters.repoName | lower }}"
+        description: "Generated Argo CD ${{ parameters.environment }} deployment files from the template."
         sourcePath: .
 
   output:

@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ${{ values.repoName }}-dev
+  name: ${{ values.repoName }}-${{ values.environment }}
   namespace: argocd
 spec:
   project: default
@@ -11,10 +11,10 @@ spec:
     path: helm
     helm:
       valueFiles:
-        - ../gitops-nonprod/dev/values.yaml
+        - ../gitops-nonprod/${{ values.environment }}/values.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: ${{ values.repoName }}-dev
+    namespace: ${{ values.repoName }}-${{ values.environment }}
   syncPolicy:
     automated:
       prune: true
