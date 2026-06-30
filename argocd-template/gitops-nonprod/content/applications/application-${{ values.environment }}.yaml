@@ -11,7 +11,7 @@ spec:
     path: helm
     helm:
       valueFiles:
-        - ../gitops-nonprod/${{ values.environment }}/values.yaml
+        - ../../values/${{ values.repoName }}/values-${{ values.environment }}.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: ${{ values.repoName }}-${{ values.environment }}
