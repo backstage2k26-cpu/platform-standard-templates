@@ -251,6 +251,103 @@ jobs:
 
           docker push $IMAGE:${VERSION}
           docker push $IMAGE:latest
+
+  # ==========================
+  # ARGOCD DEPLOY
+  # ==========================
+
+  argocd:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - deploy
+
+    if: inputs.publish == 'true'
+
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+      ARGOCD_APP_NAME: ${{ vars.ARGOCD_APP_NAME || 'guestbook' }}
+      ARGOCD_INSECURE: ${{ vars.ARGOCD_INSECURE || 'false' }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+      - name: Sync ArgoCD Application
+        id: argocd
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER || vars.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ARGOCD_SERVER}" ] || [ -z "${ARGOCD_AUTH_TOKEN}" ]; then
+            echo "ARGOCD_SERVER and ARGOCD_AUTH_TOKEN secrets are required."
+            exit 1
+          fi
+
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME_1 }}/${{ github.event.repository.name }}
+          ARGOCD_FLAGS=(
+            --server "${ARGOCD_SERVER}"
+            --auth-token "${ARGOCD_AUTH_TOKEN}"
+            --grpc-web
+          )
+
+          if [ "${ARGOCD_INSECURE}" = "true" ]; then
+            ARGOCD_FLAGS+=(--insecure)
+          fi
+
+          argocd app set "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}" \
+            --parameter "image.repository=${IMAGE}" \
+            --parameter "image.tag=${VERSION}"
+
+          argocd app sync "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}"
+
+          argocd app wait "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}" \
+            --sync \
+            --health \
+            --timeout 600
+
+          STATUS_JSON="$(argocd app get "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}" \
+            --output json)"
+
+          SYNC_STATUS="$(jq -r '.status.sync.status // "Unknown"' <<< "${STATUS_JSON}")"
+          HEALTH_STATUS="$(jq -r '.status.health.status // "Unknown"' <<< "${STATUS_JSON}")"
+          APP_URL="$(jq -r '.status.summary.externalURLs[0] // ""' <<< "${STATUS_JSON}")"
+
+          echo "image=${IMAGE}:${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sync_status=${SYNC_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "health_status=${HEALTH_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "app_url=${APP_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: ArgoCD Deployment Status
+        if: always()
+        env:
+          IMAGE: ${{ steps.argocd.outputs.image }}
+          SYNC_STATUS: ${{ steps.argocd.outputs.sync_status }}
+          HEALTH_STATUS: ${{ steps.argocd.outputs.health_status }}
+          APP_URL: ${{ steps.argocd.outputs.app_url }}
+        run: |
+          {
+            echo "## ArgoCD deployment"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Application | ${ARGOCD_APP_NAME} |"
+            echo "| Image | ${IMAGE:-Unavailable} |"
+            echo "| Sync | ${SYNC_STATUS:-Unavailable} |"
+            echo "| Health | ${HEALTH_STATUS:-Unavailable} |"
+            if [ -n "${APP_URL}" ]; then
+              echo "| URL | ${APP_URL} |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # ==========================
   # COMMIT VERSION
   # ==========================
