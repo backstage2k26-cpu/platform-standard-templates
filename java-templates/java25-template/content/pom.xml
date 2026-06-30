@@ -23,6 +23,10 @@
         <sonar.coverage.jacoco.xmlReportPaths>
             target/site/jacoco/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
+
+        <sonar.organization>
+            devops-champ
+        </sonar.organization>
     </properties>
 
     <dependencies>
