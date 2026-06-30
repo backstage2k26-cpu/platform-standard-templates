@@ -267,8 +267,9 @@ jobs:
 
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
-      ARGOCD_APP_NAME: ${{ vars.ARGOCD_APP_NAME || 'guestbook' }}
-      ARGOCD_INSECURE: ${{ vars.ARGOCD_INSECURE || 'false' }}
+      ARGOCD_APP_NAME: ${{ vars.ARGOCD_APP_NAME || 'guestbook-dev' }}
+      ARGOCD_INSECURE: ${{ vars.ARGOCD_INSECURE || 'true' }}
+      ARGOCD_PLAINTEXT: ${{ vars.ARGOCD_PLAINTEXT || 'true' }}
 
     steps:
       - uses: actions/checkout@v5
@@ -282,7 +283,7 @@ jobs:
       - name: Sync ArgoCD Application
         id: argocd
         env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER || vars.ARGOCD_SERVER }}
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER || vars.ARGOCD_SERVER || '34.180.52.32' }}
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
         run: |
           set -euo pipefail
@@ -301,6 +302,10 @@ jobs:
 
           if [ "${ARGOCD_INSECURE}" = "true" ]; then
             ARGOCD_FLAGS+=(--insecure)
+          fi
+
+          if [ "${ARGOCD_PLAINTEXT}" = "true" ]; then
+            ARGOCD_FLAGS+=(--plaintext)
           fi
 
           argocd app set "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}" \
