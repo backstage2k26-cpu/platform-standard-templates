@@ -66,6 +66,15 @@ spec:
         defaultBranch: main
         repoVisibility: public
 
+    - id: create-develop
+      name: Create Develop Branch
+      action: github:repo:push
+      input:
+        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
+        defaultBranch: develop
+        protectDefaultBranch: false
+        gitCommitMessage: "Create develop branch"
+
     - id: register
       name: Register in Catalog
       action: catalog:register
@@ -93,5 +102,7 @@ spec:
         entityRef: ${{ steps.register.output.entityRef }}
       - title: Sonar Dashboard
         url: https://sonarcloud.io/project/overview?id=${{ parameters.repoName }}
-      - title: GitHub Actions
-        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions/workflows/ci.yml
+      - title: Review Workflow
+        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions/workflows/review.yml
+      - title: Deploy Workflow
+        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions/workflows/deploy.yml
