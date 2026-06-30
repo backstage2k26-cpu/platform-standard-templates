@@ -1,0 +1,214 @@
+name: Deploy
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
+
+    outputs:
+      app_name: ${{ steps.release.outputs.app_name }}
+      image: ${{ steps.release.outputs.image }}
+      version: ${{ steps.release.outputs.version }}
+      sync_status: ${{ steps.argocd.outputs.sync_status }}
+      health_status: ${{ steps.argocd.outputs.health_status }}
+      app_url: ${{ steps.argocd.outputs.app_url }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PLATFORM_BOT_TOKEN || github.token }}
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Prepare release metadata
+        id: release
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME_1 }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DOCKERHUB_USERNAME}" ]; then
+            echo "DOCKERHUB_USERNAME_1 secret is required."
+            exit 1
+          fi
+
+          CURRENT_VERSION="$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
+          BASE_VERSION="${CURRENT_VERSION%-SNAPSHOT}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${BASE_VERSION}"
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          IMAGE="${DOCKERHUB_USERNAME}/${{ github.event.repository.name }}"
+          APP_NAME="$(ruby -ryaml -e 'puts YAML.load_file("catalog-info.yaml").dig("metadata", "annotations", "platform.io/argocd-dev").to_s')"
+
+          if [ -z "${APP_NAME}" ]; then
+            echo "platform.io/argocd-dev annotation is required in catalog-info.yaml."
+            exit 1
+          fi
+
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}:${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "image_repository=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "app_name=${APP_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Update Version
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mvn versions:set \
+            -DnewVersion="${VERSION}" \
+            -DgenerateBackupPoms=false
+
+      - name: Build
+        run: mvn clean verify
+
+      - name: Update Helm Values
+        env:
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          ruby -ryaml -e '
+            path = "helm/values.yaml"
+            values = YAML.load_file(path)
+            values["image"] ||= {}
+            values["image"]["repository"] = ENV.fetch("IMAGE_REPOSITORY")
+            values["image"]["tag"] = ENV.fetch("VERSION")
+            File.write(path, values.to_yaml)
+          '
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_1 }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_1 }}
+
+      - name: Build Docker Image
+        env:
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          docker build \
+            -t "${IMAGE_REPOSITORY}:${VERSION}" \
+            -t "${IMAGE_REPOSITORY}:latest" .
+
+      - name: Push Docker Image
+        env:
+          IMAGE_REPOSITORY: ${{ steps.release.outputs.image_repository }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          docker push "${IMAGE_REPOSITORY}:${VERSION}"
+          docker push "${IMAGE_REPOSITORY}:latest"
+
+      - name: Commit Generated Files
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "platform-bot"
+          git config user.email "platform-bot@users.noreply.github.com"
+
+          git add pom.xml helm/values.yaml
+
+          if git diff --cached --quiet; then
+            echo "No generated files changed."
+            exit 0
+          fi
+
+          git commit -m "chore: release ${VERSION} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+      - name: Wait for ArgoCD Deployment
+        id: argocd
+        env:
+          ARGOCD_APP_NAME: ${{ steps.release.outputs.app_name }}
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER || vars.ARGOCD_SERVER || '34.180.52.32' }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
+          ARGOCD_INSECURE: ${{ vars.ARGOCD_INSECURE || 'true' }}
+          ARGOCD_PLAINTEXT: ${{ vars.ARGOCD_PLAINTEXT || 'true' }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ARGOCD_SERVER}" ] || [ -z "${ARGOCD_AUTH_TOKEN}" ]; then
+            echo "ARGOCD_SERVER and ARGOCD_AUTH_TOKEN secrets are required."
+            exit 1
+          fi
+
+          ARGOCD_FLAGS=(
+            --server "${ARGOCD_SERVER}"
+            --auth-token "${ARGOCD_AUTH_TOKEN}"
+            --grpc-web
+          )
+
+          if [ "${ARGOCD_INSECURE}" = "true" ]; then
+            ARGOCD_FLAGS+=(--insecure)
+          fi
+
+          if [ "${ARGOCD_PLAINTEXT}" = "true" ]; then
+            ARGOCD_FLAGS+=(--plaintext)
+          fi
+
+          argocd app sync "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}"
+
+          argocd app wait "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}" \
+            --sync \
+            --health \
+            --timeout 600
+
+          STATUS_JSON="$(argocd app get "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}" \
+            --output json)"
+
+          SYNC_STATUS="$(jq -r '.status.sync.status // "Unknown"' <<< "${STATUS_JSON}")"
+          HEALTH_STATUS="$(jq -r '.status.health.status // "Unknown"' <<< "${STATUS_JSON}")"
+          APP_URL="$(jq -r '.status.summary.externalURLs[0] // ""' <<< "${STATUS_JSON}")"
+
+          echo "sync_status=${SYNC_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "health_status=${HEALTH_STATUS}" >> "$GITHUB_OUTPUT"
+          echo "app_url=${APP_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment Status
+        if: always()
+        env:
+          APP_NAME: ${{ steps.release.outputs.app_name }}
+          IMAGE: ${{ steps.release.outputs.image }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SYNC_STATUS: ${{ steps.argocd.outputs.sync_status }}
+          HEALTH_STATUS: ${{ steps.argocd.outputs.health_status }}
+          APP_URL: ${{ steps.argocd.outputs.app_url }}
+        run: |
+          {
+            echo "## Deployment"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Application | ${APP_NAME:-Unavailable} |"
+            echo "| Version | ${VERSION:-Unavailable} |"
+            echo "| Image | ${IMAGE:-Unavailable} |"
+            echo "| Sync | ${SYNC_STATUS:-Unavailable} |"
+            echo "| Health | ${HEALTH_STATUS:-Unavailable} |"
+            if [ -n "${APP_URL}" ]; then
+              echo "| URL | ${APP_URL} |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
