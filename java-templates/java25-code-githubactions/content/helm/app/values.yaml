@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: app
+  repository: ${{ values.dockerHubUsername }}/${{ values.repoName }}
   pullPolicy: IfNotPresent
   tag: "latest"
 
