@@ -424,31 +424,31 @@ jobs:
   # COMMIT VERSION
   # ==========================
 
-  # commit-version:
-  #   runs-on: ubuntu-latest
+  commit-version:
+    runs-on: ubuntu-latest
 
-  #   needs:
-  #     - deploy
+    needs:
+      - deploy
 
-  #   if: inputs.publish == 'true'
+    if: inputs.publish == 'true'
 
-  #   steps:
-  #     - uses: actions/checkout@v5
-  #       with:
-  #         token: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - name: Download Updated Pom
-  #       uses: actions/download-artifact@v5
-  #       with:
-  #         name: updated-pom
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
 
-  #     - name: Configure Git
-  #       run: |
-  #         git config user.name "github-actions"
-  #         git config user.email "github-actions@github.com"
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
 
-  #     - name: Commit Updated Version
-  #       run: |
-  #         git add pom.xml
-  #         git commit -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" || true
-  #         git push
+      - name: Commit Updated Version
+        run: |
+          git add pom.xml
+          git commit -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" || true
+          git push
