@@ -294,17 +294,16 @@ jobs:
             .image.tag = "'"${VERSION}"'"
           ' "${REPO_NAME}/values/values-dev.yaml"
 
-      - name: Update guestbook-dev Application
+      - name: Update ArgoCD Application
         run: |
           set -e
 
           cd gitops
 
           REPO_NAME="${{ github.event.repository.name }}"
+          APP_FILE="${REPO_NAME}/applications/${REPO_NAME}-dev.yaml"
 
-          APP_FILE="applications/guestbook-dev.yaml"
-
-          echo "Updating ArgoCD Application..."
+          echo "Updating ${APP_FILE}"
 
           yq -i '
             .spec.sources[0].repoURL =
@@ -335,8 +334,8 @@ jobs:
           cat "${{ github.event.repository.name }}/values/values-dev.yaml"
 
           echo ""
-          echo "=========== guestbook-dev.yaml ============"
-          cat applications/guestbook-dev.yaml
+          echo "=========== Application ============"
+          cat "${{ github.event.repository.name }}/applications/${{ github.event.repository.name }}-dev.yaml"
 
       - name: Commit Changes
         run: |
@@ -379,7 +378,7 @@ jobs:
 
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
-      ARGOCD_APP_NAME: ${{ vars.ARGOCD_APP_NAME || 'guestbook-dev' }}
+      ARGOCD_APP_NAME: ${{ github.event.repository.name }}-dev
       ARGOCD_INSECURE: ${{ vars.ARGOCD_INSECURE || 'true' }}
       ARGOCD_PLAINTEXT: ${{ vars.ARGOCD_PLAINTEXT || 'true' }}
 
