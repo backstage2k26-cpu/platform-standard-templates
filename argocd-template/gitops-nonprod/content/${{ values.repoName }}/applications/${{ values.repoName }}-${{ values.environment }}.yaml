@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: ${{ values.repoName }}-${{ values.environment }}
+  namespace: argocd
+
+spec:
+  project: default
+
+  sources:
+    - repoURL: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+      targetRevision: HEAD
+      path: helm/app
+
+      helm:
+        valueFiles:
+          - $values/${{ values.repoName }}/values/values-${{ values.environment }}.yaml
+
+    - repoURL: https://github.com/backstage2k26-cpu/gitops-nonprod.git
+      targetRevision: main
+      ref: values
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${{ values.repoName }}-${{ values.environment }}
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true

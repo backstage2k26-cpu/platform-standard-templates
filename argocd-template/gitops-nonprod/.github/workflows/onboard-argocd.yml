@@ -1,0 +1,255 @@
+name: ArgoCD Onboarding
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+jobs:
+  onboard:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Install yq
+        run: |
+          sudo wget \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+            -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_LOCATION }}
+          project_id: ${{ secrets.GCP_PROJECT }}
+
+      - name: Find New Application Manifests
+        id: apps
+        run: |
+          APPS=$(git diff --diff-filter=A \
+            --name-only \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.sha }} \
+            | grep '/applications/.*\.yaml$' || true)
+
+          echo "Detected application manifests:"
+          echo "$APPS"
+
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$APPS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Exit if No New Applications
+        if: steps.apps.outputs.files == ''
+        run: |
+          echo "No new ArgoCD applications found."
+          exit 0
+
+      - name: Validate GitOps Structure
+        if: steps.apps.outputs.files != ''
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r FILE
+          do
+            [ -z "$FILE" ] && continue
+
+            SERVICE=$(dirname "$(dirname "$FILE")")
+
+            echo ""
+            echo "========================================="
+            echo "Validating GitOps structure"
+            echo "Service : $SERVICE"
+            echo "========================================="
+
+            if [ ! -f "$FILE" ]; then
+              echo "❌ Application manifest not found:"
+              echo "$FILE"
+              exit 1
+            fi
+
+            if [ ! -f "$SERVICE/values/values-dev.yaml" ]; then
+              echo "❌ Missing values file:"
+              echo "$SERVICE/values/values-dev.yaml"
+              exit 1
+            fi
+
+            echo "✅ GitOps structure validated."
+
+          done <<< "${{ steps.apps.outputs.files }}"
+
+      - name: Validate Application Manifest
+        if: steps.apps.outputs.files != ''
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r FILE
+          do
+            [ -z "$FILE" ] && continue
+
+            APP_NAME=$(yq '.metadata.name' "$FILE")
+            REPO_URL=$(yq '.spec.sources[0].repoURL' "$FILE")
+            HELM_PATH=$(yq '.spec.sources[0].path' "$FILE")
+            NAMESPACE=$(yq '.spec.destination.namespace' "$FILE")
+
+            echo ""
+            echo "========================================="
+            echo "Validating Manifest"
+            echo "========================================="
+
+            echo "Application : $APP_NAME"
+            echo "Repository  : $REPO_URL"
+            echo "Helm Path   : $HELM_PATH"
+            echo "Namespace   : $NAMESPACE"
+
+            [ "$APP_NAME" = "null" ] && { echo "❌ metadata.name missing"; exit 1; }
+            [ "$REPO_URL" = "null" ] && { echo "❌ repoURL missing"; exit 1; }
+            [ "$HELM_PATH" = "null" ] && { echo "❌ Helm path missing"; exit 1; }
+            [ "$NAMESPACE" = "null" ] && { echo "❌ Namespace missing"; exit 1; }
+
+            echo "✅ Manifest validation successful."
+
+          done <<< "${{ steps.apps.outputs.files }}"
+
+      - name: Validate Application Repository
+        if: steps.apps.outputs.files != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r FILE
+          do
+            [ -z "$FILE" ] && continue
+
+            REPO_URL=$(yq '.spec.sources[0].repoURL' "$FILE")
+
+            OWNER=$(echo "$REPO_URL" | sed -E 's#https://github.com/([^/]+)/([^/.]+).git#\1#')
+            REPO=$(echo "$REPO_URL" | sed -E 's#https://github.com/([^/]+)/([^/.]+).git#\2#')
+
+            echo ""
+            echo "Checking repository..."
+            echo "$OWNER/$REPO"
+
+            STATUS=$(curl -s \
+              -o /dev/null \
+              -w "%{http_code}" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              https://api.github.com/repos/$OWNER/$REPO)
+
+            if [ "$STATUS" != "200" ]; then
+              echo "❌ Repository $OWNER/$REPO not found."
+              exit 1
+            fi
+
+            echo "✅ Repository exists."
+
+          done <<< "${{ steps.apps.outputs.files }}"
+
+      - name: Validate Duplicate Applications
+        if: steps.apps.outputs.files != ''
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r FILE
+          do
+            [ -z "$FILE" ] && continue
+
+            APP_NAME=$(yq '.metadata.name' "$FILE")
+
+            COUNT=$(grep -R "name: $APP_NAME" . | wc -l)
+
+            if [ "$COUNT" -gt 1 ]; then
+              echo "❌ Duplicate ArgoCD Application detected:"
+              echo "$APP_NAME"
+              exit 1
+            fi
+
+            echo "✅ No duplicate application found."
+
+          done <<< "${{ steps.apps.outputs.files }}"
+
+      - name: Create ArgoCD Applications
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r FILE
+          do
+            [ -z "$FILE" ] && continue
+
+            APP_NAME=$(yq '.metadata.name' "$FILE")
+            NAMESPACE=$(yq '.spec.destination.namespace' "$FILE")
+
+            echo ""
+            echo "===================================================="
+            echo "Application : $APP_NAME"
+            echo "Namespace   : $NAMESPACE"
+            echo "Manifest    : $FILE"
+            echo "===================================================="
+
+            if argocd app get "$APP_NAME" \
+              --server "$ARGOCD_SERVER" \
+              --auth-token "$ARGOCD_AUTH_TOKEN" \
+              --grpc-web \
+              --plaintext \
+              --insecure >/dev/null 2>&1
+            then
+              echo "Application already exists. Skipping..."
+              continue
+            fi
+
+            echo "Creating ArgoCD Application..."
+
+            kubectl apply -f "$FILE"
+
+            echo "Waiting for Application to become Healthy..."
+
+            argocd app wait "$APP_NAME" \
+              --server "$ARGOCD_SERVER" \
+              --auth-token "$ARGOCD_AUTH_TOKEN" \
+              --grpc-web \
+              --plaintext \
+              --insecure \
+              --sync \
+              --health \
+              --timeout 600
+
+            echo "✅ $APP_NAME successfully onboarded."
+
+          done <<< "${{ steps.apps.outputs.files }}"
+
+      - name: Workflow Summary
+        if: always()
+        run: |
+          {
+            echo "## 🚀 ArgoCD Onboarding"
+            echo ""
+            echo "Repository : ${{ github.repository }}"
+            echo "Merged PR  : #${{ github.event.pull_request.number }}"
+            echo "Actor      : ${{ github.actor }}"
+          } >> "$GITHUB_STEP_SUMMARY"
