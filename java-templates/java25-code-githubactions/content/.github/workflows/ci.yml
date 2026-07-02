@@ -9,10 +9,15 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      publish:
-        description: "Publish Docker image?"
+      deployment_mode:
+        description: "Deployment Type"
+        type: choice
         required: true
-        default: "false"
+        default: "Build Only"
+        options:
+          - Build Only
+          - Docker (Push Image)
+          - ArgoCD (Image Deployment)
 
 jobs:
 
@@ -162,7 +167,9 @@ jobs:
       - build
       - sonar
 
-    if: inputs.publish == 'true'
+    if: |
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
 
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
@@ -218,7 +225,9 @@ jobs:
       - setversion
       - docker
 
-    if: inputs.publish == 'true'
+    if: |
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
 
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
@@ -261,7 +270,7 @@ jobs:
     needs:
       - setversion
       - deploy
-    if: inputs.publish == 'true'
+    if: inputs.deployment_mode == 'ArgoCD (Image Deployment)'
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
     steps:
@@ -374,7 +383,7 @@ jobs:
       - deploy
       - update-gitops
 
-    if: inputs.publish == 'true'
+    if: inputs.deployment_mode == 'ArgoCD (Image Deployment)'
 
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
@@ -505,16 +514,17 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ==========================
-  # COMMIT VERSION
+  # COMMIT VERSION (BUILD ONLY)
   # ==========================
 
-  commit-version:
+  commit-version-build:
     runs-on: ubuntu-latest
 
     needs:
-      - deploy
+      - setversion
+      - sonar
 
-    if: inputs.publish == 'true'
+    if: inputs.deployment_mode == 'Build Only'
 
     steps:
       - uses: actions/checkout@v5
@@ -534,5 +544,87 @@ jobs:
       - name: Commit Updated Version
         run: |
           git add pom.xml
-          git commit -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" || true
+
+          git commit \
+            -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
+            || echo "No version changes"
+
+          git push
+
+
+  # ==========================
+  # COMMIT VERSION (DOCKER)
+  # ==========================
+
+  commit-version-docker:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - deploy
+
+    if: inputs.deployment_mode == 'Docker (Push Image)'
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Commit Updated Version
+        run: |
+          git add pom.xml
+
+          git commit \
+            -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
+            || echo "No version changes"
+
+          git push
+
+
+  # ==========================
+  # COMMIT VERSION (ARGOCD)
+  # ==========================
+
+  commit-version-argocd:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - argocd
+
+    if: inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Commit Updated Version
+        run: |
+          git add pom.xml
+
+          git commit \
+            -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
+            || echo "No version changes"
+
           git push
