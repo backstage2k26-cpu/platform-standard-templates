@@ -8,9 +8,9 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     sonarqube.org/project-key: devops-champ_${{ values.repoName }}
     roadie-backstage-pull-requests/default-filter: "is:open is:pr"
-    platform.io/argocd-dev: guestbook-dev
-    platform.io/argocd-qa: guestbook-qa
-    platform.io/argocd-prod: guestbook-prod
+    platform.io/argocd-dev: ${{ values.repoName }}-dev
+    platform.io/argocd-qa: ${{ values.repoName }}-qa
+    platform.io/argocd-prod: ${{ values.repoName }}-prod
 spec:
   type: service
   lifecycle: experimental
