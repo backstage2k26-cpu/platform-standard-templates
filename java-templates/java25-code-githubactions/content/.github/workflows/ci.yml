@@ -134,7 +134,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
         run: |
           PROJECT_KEY="devops-champ_${{ github.event.repository.name }}"
-      
+
           curl -u "${SONAR_TOKEN}:" \
             -X POST \
             "https://sonarcloud.io/api/projects/create" \
@@ -142,7 +142,7 @@ jobs:
             -d "project=${PROJECT_KEY}" \
             -d "name=${PROJECT_KEY}"
         continue-on-error: true
-      
+
       - name: Sonar Scan
         env:
           SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
@@ -400,7 +400,7 @@ jobs:
           chmod +x argocd
           sudo mv argocd /usr/local/bin/argocd
 
-      - name: Refresh ArgoCD Application
+      - name: Verify ArgoCD Application
         env:
           ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
@@ -421,42 +421,19 @@ jobs:
             ARGOCD_FLAGS+=(--plaintext)
           fi
 
-          echo "Refreshing ArgoCD application..."
+          echo "Checking application..."
 
           argocd app get "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}"
 
-          argocd app refresh "${ARGOCD_APP_NAME}" \
-            "${ARGOCD_FLAGS[@]}" \
-            --hard
-
-      - name: Wait for ArgoCD Auto Sync
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          ARGOCD_FLAGS=(
-            --server "${ARGOCD_SERVER}"
-            --auth-token "${ARGOCD_AUTH_TOKEN}"
-            --grpc-web
-          )
-
-          if [ "${ARGOCD_INSECURE}" = "true" ]; then
-            ARGOCD_FLAGS+=(--insecure)
-          fi
-
-          if [ "${ARGOCD_PLAINTEXT}" = "true" ]; then
-            ARGOCD_FLAGS+=(--plaintext)
-          fi
-
-          echo "Waiting for ArgoCD to detect GitOps changes..."
+          echo "Waiting up to 2 minutes for sync..."
 
           argocd app wait "${ARGOCD_APP_NAME}" \
             "${ARGOCD_FLAGS[@]}" \
             --sync \
             --health \
-            --timeout 600
+            --timeout 120
+
+          echo "Deployment synchronized successfully."
 
       - name: Get ArgoCD Status
         id: status
