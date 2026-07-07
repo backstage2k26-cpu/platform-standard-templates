@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ${{ values.dockerHubUsername }}/${{ values.repoName }}
+  repository: docker.io/backstage2026/${{ values.repoName }}
   pullPolicy: IfNotPresent
   tag: "latest"
 
