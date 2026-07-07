@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: docker.io/backstage2026/${{ values.repoName }}
+  repository: docker.io/backstage2026/helm-testing
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -28,16 +28,26 @@ service:
   port: 80
   targetPort: 8080
 
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: app.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
+httpRoute:
+  enabled: true
+  name: helm-testing-dev-route
+  namespace: helm-testing-dev
+  parentRefs:
+    - name: backstage-gateway
+      namespace: gateway-system
+  matches:
+    - path:
+        type: PathPrefix
+        value: /helm-testing-dev
+  filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+  backendRefs:
+    - name: helm-testing-dev
+      port: 80
 
 resources: {}
 

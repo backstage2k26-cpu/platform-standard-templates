@@ -2,8 +2,8 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ .Values.httpRoute.name }}
-  namespace: {{ .Values.httpRoute.namespace }}
+  name: {{ .Values.httpRoute.name | default (include "app.fullname" .) }}
+  namespace: {{ .Values.httpRoute.namespace | default .Release.Namespace }}
   labels:
     {{- include "app.labels" . | nindent 4 }}
 spec:
@@ -11,7 +11,7 @@ spec:
     {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
   rules:
     - matches:
-        {{- toYaml .Values.httpRoute.matches | nindent 6 }}
+        {{- toYaml .Values.httpRoute.matches | nindent 8 }}
       {{- with .Values.httpRoute.filters }}
       filters:
         {{- toYaml . | nindent 8 }}
