@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: docker.io/backstage2026/helm-testing
+  repository: docker.io/backstage2026/${{ values.repoName }}
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -30,15 +30,15 @@ service:
 
 httpRoute:
   enabled: true
-  name: helm-testing-dev-route
-  namespace: helm-testing-dev
+  name: ${{ values.repoName }}-dev-route
+  namespace: ${{ values.repoName }}-dev
   parentRefs:
     - name: backstage-gateway
       namespace: gateway-system
   matches:
     - path:
         type: PathPrefix
-        value: /helm-testing-dev
+        value: /${{ values.repoName }}-dev
   filters:
     - type: URLRewrite
       urlRewrite:
@@ -46,7 +46,7 @@ httpRoute:
           type: ReplacePrefixMatch
           replacePrefixMatch: /
   backendRefs:
-    - name: helm-testing-dev
+    - name: ${{ values.repoName }}-dev
       port: 80
 
 resources: {}
