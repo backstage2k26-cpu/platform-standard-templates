@@ -260,6 +260,61 @@ jobs:
 
           docker push $IMAGE:${VERSION}
           docker push $IMAGE:latest
+          
+  # ==========================
+  # UPDATE APP HELM VALUES (COMBINED WITH POM COMMIT)
+  # ==========================
+
+  update-app-helm:
+    runs-on: ubuntu-latest
+    needs:
+      - setversion
+      - deploy
+    if: |
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - name: Install yq
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update helm/app/values.yaml tag
+        run: |
+          VALUES_FILE="helm/app/values.yaml"
+          if [ -f "$VALUES_FILE" ]; then
+            yq -i '.image.tag = env(VERSION)' "$VALUES_FILE"
+            echo "Successfully updated $VALUES_FILE tag to ${VERSION}"
+          elif [ -f "helm/app/values.yaml" ]; then
+            yq -i '.image.tag = env(VERSION)' "helm/app/values.yaml"
+            echo "Successfully updated helm/app/values.yaml tag to ${VERSION}"
+          else
+            echo "Error: values.yaml not found!"
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Commit and Push Pom and Helm Changes
+        run: |
+          git pull --rebase origin main || true
+          git add pom.xml helm/app/values.yaml helm/app/values.yaml || true
+          git commit -m "chore: bump version to ${VERSION} and update helm tag" || echo "No changes to commit"
+          git push origin main
 
   # ==========================
   # UPDATE-GITOPS
@@ -296,12 +351,22 @@ jobs:
           REPO_NAME="${{ github.event.repository.name }}"
           IMAGE="${{ secrets.DOCKERHUB_USERNAME_1 }}/${REPO_NAME}"
 
-          echo "Updating values file..."
+          echo "Searching and updating correct values file path..."
+          
+          # Handle path fallback based on repository folder configuration in gitops repo
+          if [ -f "${REPO_NAME}/values/values-dev.yaml" ]; then
+            TARGET_PATH="${REPO_NAME}/values/values-dev.yaml"
+          elif [ -f "helm/values/values-dev.yaml" ]; then
+            TARGET_PATH="helm/values/values-dev.yaml"
+          else
+            TARGET_PATH="helm/values/values-dev.yaml"
+            mkdir -p "$(dirname "$TARGET_PATH")"
+          fi
 
           yq -i '
             .image.repository = "'"${IMAGE}"'" |
             .image.tag = "'"${VERSION}"'"
-          ' "${REPO_NAME}/values/values-dev.yaml"
+          ' "$TARGET_PATH"
 
       - name: Update ArgoCD Application
         run: |
@@ -312,39 +377,17 @@ jobs:
           REPO_NAME="${{ github.event.repository.name }}"
           APP_FILE="${REPO_NAME}/applications/${REPO_NAME}-dev.yaml"
 
-          echo "Updating ${APP_FILE}"
+          if [ ! -f "$APP_FILE" ]; then
+            APP_FILE="helm-deploy/${REPO_NAME}-dev.yaml" || true
+          fi
 
-          yq -i '
-            .spec.sources[0].repoURL =
-            "https://github.com/devops-champ/'"${REPO_NAME}"'.git"
-          ' "$APP_FILE"
-
-          yq -i '
-            .spec.sources[0].path =
-            "helm/app"
-          ' "$APP_FILE"
-
-          yq -i '
-            .spec.sources[0].helm.valueFiles[0] =
-            "$values/'"${REPO_NAME}"'/values/values-dev.yaml"
-          ' "$APP_FILE"
-
-          yq -i '
-            .spec.destination.namespace =
-            "'"${REPO_NAME}"'-dev"
-          ' "$APP_FILE"
-
-      - name: Verify GitOps Changes
-        run: |
-          cd gitops
-
-          echo ""
-          echo "============= values-dev.yaml ============="
-          cat "${{ github.event.repository.name }}/values/values-dev.yaml"
-
-          echo ""
-          echo "=========== Application ============"
-          cat "${{ github.event.repository.name }}/applications/${{ github.event.repository.name }}-dev.yaml"
+          echo "Checking application configuration..."
+          if [ -f "$APP_FILE" ]; then
+            yq -i '
+              .spec.sources[0].repoURL =
+              "https://github.com/devops-champ/'"${REPO_NAME}"'.git"
+            ' "$APP_FILE" || true
+          fi
 
       - name: Commit Changes
         run: |
@@ -520,88 +563,11 @@ jobs:
 
       - name: Commit Updated Version
         run: |
+          git pull --rebase origin main || true
           git add pom.xml
 
           git commit \
             -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
             || echo "No version changes"
 
-          git push
-
-
-  # ==========================
-  # COMMIT VERSION (DOCKER)
-  # ==========================
-
-  commit-version-docker:
-    runs-on: ubuntu-latest
-
-    needs:
-      - setversion
-      - deploy
-
-    if: inputs.deployment_mode == 'Docker (Push Image)'
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download Updated Pom
-        uses: actions/download-artifact@v5
-        with:
-          name: updated-pom
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-      - name: Commit Updated Version
-        run: |
-          git add pom.xml
-
-          git commit \
-            -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
-            || echo "No version changes"
-
-          git push
-
-
-  # ==========================
-  # COMMIT VERSION (ARGOCD)
-  # ==========================
-
-  commit-version-argocd:
-    runs-on: ubuntu-latest
-
-    needs:
-      - setversion
-      - argocd
-
-    if: inputs.deployment_mode == 'ArgoCD (Image Deployment)'
-
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Download Updated Pom
-        uses: actions/download-artifact@v5
-        with:
-          name: updated-pom
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-      - name: Commit Updated Version
-        run: |
-          git add pom.xml
-
-          git commit \
-            -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
-            || echo "No version changes"
-
-          git push
+          git push origin main
