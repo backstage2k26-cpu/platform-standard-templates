@@ -357,7 +357,7 @@ jobs:
           git commit -m "chore: bump version to ${VERSION} and update helm tag" || echo "No changes to commit"
           git push origin main
 
-  # ==========================
+# ==========================
   # UPDATE-GITOPS
   # ==========================
 
@@ -378,6 +378,22 @@ jobs:
           repository: backstage2k26-cpu/gitops-nonprod
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
+
+      # Optional: Extract Jira Number if stored in pom.xml properties or pass via workflow dispatch / env
+      # If you store the Jira number in a known file or property, parse it here. 
+      # Otherwise, you can pass it via workflow_dispatch inputs or read from a previous step output.
+      - name: Extract Jira Number
+        id: get-jira
+        run: |
+          # Example: If Jira number is embedded in pom.xml or set as an environment/variable.
+          # Adjust this extraction logic based on where your template writes the Jira number.
+          JIRA_NUM="${{ github.event.inputs.JiraNumber }}" # if passed via workflow dispatch
+          if [ -z "$JIRA_NUM" ]; then
+            # Fallback: Try reading from a file or use a default/extracted pattern if saved in repo
+            JIRA_NUM=$(grep -o엠 'JIRA-[0-9]+' pom.xml || echo "JIRA-TASK")
+          fi
+          echo "jira_number=${JIRA_NUM}" >> $GITHUB_OUTPUT
+
       - name: Install yq
         run: |
           sudo wget \
@@ -385,7 +401,8 @@ jobs:
             -O /usr/local/bin/yq
 
           sudo chmod +x /usr/local/bin/yq
-      - name: Update values-dev.yaml
+
+      - name: Update values-dev.yaml and Application File
         run: |
           set -e
 
@@ -393,9 +410,10 @@ jobs:
 
           REPO_NAME="${{ github.event.repository.name }}"
           IMAGE="${{ secrets.DOCKERHUB_USERNAME_1 }}/${REPO_NAME}"
+          VERSION_TAG="v${{ env.VERSION }}" # Matching git tag format vX.Y.Z or just use VERSION
 
           echo "Searching and updating correct values file path..."
-          
+
           # Handle path fallback based on repository folder configuration in gitops repo
           if [ -f "${REPO_NAME}/values/values-dev.yaml" ]; then
             TARGET_PATH="${REPO_NAME}/values/values-dev.yaml"
@@ -406,37 +424,37 @@ jobs:
             mkdir -p "$(dirname "$TARGET_PATH")"
           fi
 
+          # 1. Update image repository and tag in values file
           yq -i '
             .image.repository = "'"${IMAGE}"'" |
-            .image.tag = "'"${VERSION}"'"
+            .image.tag = "'"${{ env.VERSION }}"'"
           ' "$TARGET_PATH"
 
-      - name: Update ArgoCD Application
-        run: |
-          set -e
-
-          cd gitops
-
-          REPO_NAME="${{ github.event.repository.name }}"
+          # 2. Update ArgoCD Application File (targetRevision & repoURL)
           APP_FILE="${REPO_NAME}/applications/${REPO_NAME}-dev.yaml"
-
           if [ ! -f "$APP_FILE" ]; then
-            APP_FILE="helm-deploy/${REPO_NAME}-dev.yaml" || true
+            APP_FILE="helm-deploy/${REPO_NAME}-dev.yaml"
           fi
 
-          echo "Checking application configuration..."
+          echo "Checking and updating application configuration at ${APP_FILE}..."
           if [ -f "$APP_FILE" ]; then
             yq -i '
-              .spec.sources[0].repoURL =
-              "https://github.com/devops-champ/'"${REPO_NAME}"'.git"
-            ' "$APP_FILE" || true
+              .spec.sources[0].repoURL = "https://github.com/devops-champ/'"${REPO_NAME}"'.git" |
+              .spec.sources[0].targetRevision = "'"${{ env.VERSION }}"'"
+            ' "$APP_FILE"
+            echo "Successfully updated targetRevision to ${{ env.VERSION }} in ${APP_FILE}"
+          else
+            echo "Warning: Application file not found at expected path."
           fi
 
-      - name: Commit Changes
+      - name: Commit Changes with Jira Number
         run: |
           set -e
 
           cd gitops
+
+          JIRA="${{ steps.get-jira.outputs.jira_number }}"
+          COMMIT_MSG="Deploy ${{ github.event.repository.name }}:${{ env.VERSION }} [${JIRA}]"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -446,7 +464,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No GitOps changes detected."
           else
-            git commit -m "Deploy ${{ github.event.repository.name }}:${VERSION}"
+            git commit -m "$COMMIT_MSG"
           fi
 
       - name: Push Changes
@@ -454,7 +472,6 @@ jobs:
           set -e
 
           cd gitops
-
           git push origin main
 
   # ==========================
