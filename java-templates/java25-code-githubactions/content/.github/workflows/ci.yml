@@ -21,6 +21,10 @@ on:
           - Build Only
           - Docker (Push Image)
           - ArgoCD (Image Deployment)
+      JiraNumber:
+        description: "Jira Ticket Number"
+        type: string
+        required: false
 
 jobs:
 
@@ -78,7 +82,10 @@ jobs:
 
     needs: setversion
 
-    if: github.event_name == 'push'
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
 
     steps:
       - uses: actions/checkout@v5
@@ -353,11 +360,11 @@ jobs:
       - name: Commit and Push Pom and Helm Changes
         run: |
           git pull --rebase origin main || true
-          git add pom.xml helm/app/values.yaml helm/app/values.yaml || true
+          git add pom.xml helm/app/values.yaml || true
           git commit -m "chore: bump version to ${VERSION} and update helm tag" || echo "No changes to commit"
           git push origin main
 
-# ==========================
+  # ==========================
   # UPDATE-GITOPS
   # ==========================
 
@@ -379,19 +386,26 @@ jobs:
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
 
-      # Optional: Extract Jira Number if stored in pom.xml properties or pass via workflow dispatch / env
-      # If you store the Jira number in a known file or property, parse it here. 
-      # Otherwise, you can pass it via workflow_dispatch inputs or read from a previous step output.
       - name: Extract Jira Number
         id: get-jira
         run: |
-          # Example: If Jira number is embedded in pom.xml or set as an environment/variable.
-          # Adjust this extraction logic based on where your template writes the Jira number.
-          JIRA_NUM="${{ github.event.inputs.JiraNumber }}" # if passed via workflow dispatch
-          if [ -z "$JIRA_NUM" ]; then
-            # Fallback: Try reading from a file or use a default/extracted pattern if saved in repo
-            JIRA_NUM=$(grep -o엠 'JIRA-[0-9]+' pom.xml || echo "JIRA-TASK")
+          JIRA_NUM="${{ github.event.inputs.JiraNumber }}"
+          
+          if [ -z "$JIRA_NUM" ] || [ "$JIRA_NUM" = "null" ]; then
+            if [ -f ".jira-ticket" ]; then
+              JIRA_NUM=$(cat .jira-ticket | tr -d '[:space:]')
+            fi
           fi
+
+          if [ -z "$JIRA_NUM" ] || [ "$JIRA_NUM" = "null" ]; then
+            JIRA_NUM=$(grep -oE '[A-Z]+-[0-9]+' pom.xml | head -n 1 || echo "")
+          fi
+
+          if [ -z "$JIRA_NUM" ] || [ "$JIRA_NUM" = "null" ]; then
+            JIRA_NUM="JIRA-TASK"
+          fi
+
+          echo "Using Jira Number: ${JIRA_NUM}"
           echo "jira_number=${JIRA_NUM}" >> $GITHUB_OUTPUT
 
       - name: Install yq
@@ -410,11 +424,9 @@ jobs:
 
           REPO_NAME="${{ github.event.repository.name }}"
           IMAGE="${{ secrets.DOCKERHUB_USERNAME_1 }}/${REPO_NAME}"
-          VERSION_TAG="v${{ env.VERSION }}" # Matching git tag format vX.Y.Z or just use VERSION
 
           echo "Searching and updating correct values file path..."
-
-          # Handle path fallback based on repository folder configuration in gitops repo
+          
           if [ -f "${REPO_NAME}/values/values-dev.yaml" ]; then
             TARGET_PATH="${REPO_NAME}/values/values-dev.yaml"
           elif [ -f "helm/values/values-dev.yaml" ]; then
@@ -430,19 +442,19 @@ jobs:
             .image.tag = "'"${{ env.VERSION }}"'"
           ' "$TARGET_PATH"
 
-          # 2. Update ArgoCD Application File (targetRevision & repoURL)
+          # 2. Update ArgoCD Application File (targetRevisions & repoURL)
           APP_FILE="${REPO_NAME}/applications/${REPO_NAME}-dev.yaml"
           if [ ! -f "$APP_FILE" ]; then
-            APP_FILE="helm-deploy/${REPO_NAME}-dev.yaml"
+            APP_FILE="helm-deploy/${REPO_NAME}-dev.yaml" || true
           fi
 
           echo "Checking and updating application configuration at ${APP_FILE}..."
           if [ -f "$APP_FILE" ]; then
             yq -i '
               .spec.sources[0].repoURL = "https://github.com/devops-champ/'"${REPO_NAME}"'.git" |
-              .spec.sources[0].targetRevision = "'"${{ env.VERSION }}"'"
-            ' "$APP_FILE"
-            echo "Successfully updated targetRevision to ${{ env.VERSION }} in ${APP_FILE}"
+              .spec.sources[].targetRevision = "'"${{ env.VERSION }}"'"
+            ' "$APP_FILE" || true
+            echo "Successfully updated all targetRevisions to ${{ env.VERSION }} in ${APP_FILE}"
           else
             echo "Warning: Application file not found at expected path."
           fi
