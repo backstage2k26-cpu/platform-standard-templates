@@ -21,10 +21,6 @@ on:
           - Build Only
           - Docker (Push Image)
           - ArgoCD (Image Deployment)
-      JiraNumber:
-        description: "Jira Ticket Number"
-        type: string
-        required: false
 
 jobs:
 
@@ -386,28 +382,6 @@ jobs:
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
 
-      - name: Extract Jira Number
-        id: get-jira
-        run: |
-          JIRA_NUM="${{ github.event.inputs.JiraNumber }}"
-          
-          if [ -z "$JIRA_NUM" ] || [ "$JIRA_NUM" = "null" ]; then
-            if [ -f ".jira-ticket" ]; then
-              JIRA_NUM=$(cat .jira-ticket | tr -d '[:space:]')
-            fi
-          fi
-
-          if [ -z "$JIRA_NUM" ] || [ "$JIRA_NUM" = "null" ]; then
-            JIRA_NUM=$(grep -oE '[A-Z]+-[0-9]+' pom.xml | head -n 1 || echo "")
-          fi
-
-          if [ -z "$JIRA_NUM" ] || [ "$JIRA_NUM" = "null" ]; then
-            JIRA_NUM="JIRA-TASK"
-          fi
-
-          echo "Using Jira Number: ${JIRA_NUM}"
-          echo "jira_number=${JIRA_NUM}" >> $GITHUB_OUTPUT
-
       - name: Install yq
         run: |
           sudo wget \
@@ -459,14 +433,37 @@ jobs:
             echo "Warning: Application file not found at expected path."
           fi
 
+      - name: Verify GitHub CLI
+        run: gh --version
+        
+      - name: Get Jira ID from PR Title
+        id: jira
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_TITLE=$(gh api \
+            repos/${{ github.repository }}/commits/${{ github.sha }}/pulls \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[0].title')
+
+          echo "PR Title: $PR_TITLE"
+
+          JIRA=$(echo "$PR_TITLE" | grep -oE 'CORE-[0-9]+')
+
+          if [ -z "$JIRA" ]; then
+            echo "No Jira ID found in PR title."
+            exit 1
+          fi
+
+          echo "jira=$JIRA" >> "$GITHUB_OUTPUT"
+
       - name: Commit Changes with Jira Number
         run: |
           set -e
 
           cd gitops
 
-          JIRA="${{ steps.get-jira.outputs.jira_number }}"
-          COMMIT_MSG="Deploy ${{ github.event.repository.name }}:${{ env.VERSION }} [${JIRA}]"
+          COMMIT_MSG="${{ steps.jira.outputs.jira }} Update image tag to ${{ env.VERSION }}"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"

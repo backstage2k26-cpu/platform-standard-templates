@@ -1,0 +1,28 @@
+name: Validate PR Title
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+jobs:
+  validate-title:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR Title
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+
+          echo "PR Title: $TITLE"
+
+          if [[ ! "$TITLE" =~ ^(CORE|DEVOPS|OPS)-[0-9]+\ .+ ]]; then
+          echo "::error::Invalid PR title."
+          echo "::error::Expected format: CORE-1234 or DEVOPS-45 or OPS-44"
+          exit 1
+          fi
+
+          echo "✅ PR title is valid."
