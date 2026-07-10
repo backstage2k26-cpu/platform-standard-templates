@@ -57,14 +57,7 @@ spec:
           repoOwner: ${{ parameters.repoOwner }}
           JiraNumber: ${{ parameters.JiraNumber }}
           repoName: ${{ parameters.repoName | lower }}
-
-    - id: write-jira-file
-      name: Save Jira Number to File
-      action: fs:write
-      input:
-        path: .jira-ticket
-        content: ${{ parameters.JiraNumber }}
-
+          
     - id: publish
       name: Publish to GitHub
       action: publish:github
