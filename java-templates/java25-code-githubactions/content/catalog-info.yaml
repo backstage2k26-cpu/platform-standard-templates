@@ -11,10 +11,7 @@ metadata:
     platform.io/argocd-dev: ${{ values.repoName }}-dev
     platform.io/argocd-qa: ${{ values.repoName }}-qa
     platform.io/argocd-prod: ${{ values.repoName }}-prod
-    grafana/host-id: default
-    grafana/dashboard-selector: folder=Shared with me
-    grafana/alert-label-selector: service=my-service
-    grafana/tag-selector: 'my-tag'
+    grafana/overview-dashboard: http://localhost:3030/d/k8s_views_global/kubernetes-views-global?orgId=1&from=now-1h&to=now&timezone=browser&var-datasource=efrnfszy9z0u8b&var-cluster=&var-resolution=30s&var-job=kubernetes-service-endpoints&refresh=30s
 spec:
   type: service
   lifecycle: experimental
