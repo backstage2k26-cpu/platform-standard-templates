@@ -11,7 +11,7 @@ metadata:
     platform.io/argocd-dev: ${{ values.repoName }}-dev
     platform.io/argocd-qa: ${{ values.repoName }}-qa
     platform.io/argocd-prod: ${{ values.repoName }}-prod
-    grafana/host-id: production
+    grafana/host-id: default
     grafana/dashboard-selector: folder=Shared with me
     grafana/alert-label-selector: service=my-service
     grafana/tag-selector: 'my-tag'
