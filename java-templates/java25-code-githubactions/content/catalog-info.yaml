@@ -11,8 +11,7 @@ metadata:
     platform.io/argocd-dev: ${{ values.repoName }}-dev
     platform.io/argocd-qa: ${{ values.repoName }}-qa
     platform.io/argocd-prod: ${{ values.repoName }}-prod
-    grafana/dashboard-uid: k8s_views_global
-    grafana/repo-name: ${{ values.repoName }}
+    grafana/log-namespace: ${{ values.repoName }}-dev
 spec:
   type: service
   lifecycle: experimental
