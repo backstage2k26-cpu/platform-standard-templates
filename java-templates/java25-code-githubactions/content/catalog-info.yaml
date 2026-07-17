@@ -4,6 +4,7 @@ metadata:
   name: ${{ values.repoName }}
   description: Sample service with CI/CD
   annotations:
+    devlake.io/project-name: ${{ values.repoName }}
     github.com/project-slug: ${{ values.repoOwner }}/${{ values.repoName }}
     backstage.io/techdocs-ref: dir:.
     sonarqube.org/project-key: devops-champ_${{ values.repoName }}
