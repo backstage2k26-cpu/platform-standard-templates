@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: ${{ values.repoName }}
+
+server:
+  port: 8080
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
