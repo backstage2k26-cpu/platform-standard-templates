@@ -12,10 +12,10 @@
     </parent>
 
     <groupId>com.gspann</groupId>
-    <artifactId>sample-app</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <name>sample-app</name>
-    <description>Sample Java 25 REST API with health probes</description>
+    <artifactId>${{ values.repoName }}</artifactId>
+    <version>0.0.1</version>
+    <name>${{ values.repoName }}</name>
+    <description>${{ values.repoName }}</description>
 
     <properties>
         <java.version>25</java.version>

@@ -1,4 +1,4 @@
-site_name: Java 25 Service Documentation
+site_name: ${{ values.repoName }} Documentation
 
 nav:
   - Home: index.md
