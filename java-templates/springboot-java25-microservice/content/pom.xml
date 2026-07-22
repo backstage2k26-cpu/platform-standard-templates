@@ -15,10 +15,12 @@
     <artifactId>${{ values.repoName }}</artifactId>
     <version>0.0.1</version>
     <name>${{ values.repoName }}</name>
-    <description>${{ values.repoName }}</description>
+    <description>${{ values.repoName }} Application</description>
 
     <properties>
         <java.version>25</java.version>
+        <jacoco.version>0.8.13</jacoco.version>
+        <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <dependencies>
