@@ -96,7 +96,7 @@ jobs:
       - name: Create Git Tag
         run: |
           VERSION="${{ needs.setversion.outputs.new_version }}"
-          TAG="v${VERSION}"
+          TAG="${VERSION}"
 
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag already exists."
@@ -425,8 +425,7 @@ jobs:
           echo "Checking and updating application configuration at ${APP_FILE}..."
           if [ -f "$APP_FILE" ]; then
             yq -i '
-              .spec.sources[0].repoURL = "https://github.com/devops-champ/'"${REPO_NAME}"'.git" |
-              .spec.sources[].targetRevision = "'"${{ env.VERSION }}"'"
+              .spec.sources[0].targetRevision = "'"${{ env.VERSION }}"'"
             ' "$APP_FILE" || true
             echo "Successfully updated all targetRevisions to ${{ env.VERSION }} in ${APP_FILE}"
           else
