@@ -24,6 +24,6 @@ class AppTest {
             System.setOut(originalOut);
         }
 
-        assertThat(output.toString(StandardCharsets.UTF_8)).isEqualTo("Hello from market" + System.lineSeparator());
+        assertThat(output.toString(StandardCharsets.UTF_8)).isEqualTo("Hello from ${{ values.repoName }}" + System.lineSeparator());
     }
 }
