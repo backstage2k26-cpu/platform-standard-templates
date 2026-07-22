@@ -375,6 +375,11 @@ jobs:
     env:
       VERSION: ${{ needs.setversion.outputs.new_version }}
     steps:
+      - name: Checkout Current Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       - name: Checkout GitOps Repository
         uses: actions/checkout@v5
         with:
@@ -458,8 +463,8 @@ jobs:
           JIRA=$(echo "$SOURCE_TEXT" | grep -oE '(CORE|DEVOPS|OPS|JIRA)-[0-9]+' | head -n 1)
 
           if [ -z "$JIRA" ]; then
-            echo "No Jira ID found in PR title or commit message."
-            exit 1
+            JIRA="commit-${{ env.VERSION }}"
+            echo "No Jira ID found in PR title or commit message. Using fallback: $JIRA"
           fi
 
           echo "jira=$JIRA" >> "$GITHUB_OUTPUT"
@@ -470,7 +475,7 @@ jobs:
 
           cd gitops
 
-          COMMIT_MSG="${{ steps.jira.outputs.jira }} Update image tag to ${{ env.VERSION }}"
+          COMMIT_MSG="${{ steps.jira.outputs.jira }}"
 
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
