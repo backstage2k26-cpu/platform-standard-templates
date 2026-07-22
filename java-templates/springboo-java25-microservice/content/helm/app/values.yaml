@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: app
+  repository: docker.io/backstage2026/${{ values.repoName }}
   pullPolicy: IfNotPresent
   tag: "latest"
 
@@ -28,16 +28,26 @@ service:
   port: 80
   targetPort: 8080
 
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: app.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
+httpRoute:
+  enabled: true
+  name: ${{ values.repoName }}-dev-route
+  namespace: ${{ values.repoName }}-dev
+  parentRefs:
+    - name: backstage-gateway
+      namespace: gateway-system
+  matches:
+    - path:
+        type: PathPrefix
+        value: /${{ values.repoName }}-dev
+  filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+  backendRefs:
+    - name: ${{ values.repoName }}-dev
+      port: 80
 
 resources: {}
 

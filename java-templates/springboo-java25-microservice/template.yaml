@@ -1,0 +1,154 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: java25-code-githubactions
+  title: Java 25 Code GitHub Actions Template
+  description: Create a Java 25 service repository in GitHub with GitHub Actions
+  tags:
+    - java25
+    - github-actions
+    - sonarqube
+spec:
+  owner: user:default/guest
+  type: service
+
+  parameters:
+    - title: Repository Details
+      required:
+        - repoOwner
+        - repoName
+        - owner
+        - AppId
+        - ApprovedJiraId
+        - BusinessUnit
+        - SupportTeam
+        - CloudBudgetTicket
+        - DevGCPProjectId
+        - QaGCPProjectId
+        - ProdGCPProjectId
+      properties:
+        repoOwner:
+          title: Repository Owner
+          type: string
+          description: GitHub organization or username
+          default: devops-champ
+          ui:autofocus: true
+
+        repoName:
+          title: Repository Name
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          description: Name of the GitHub repository (lowercase recommended)
+
+        owner:
+          title: Team Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+
+        AppId:
+          title: Application ID
+          type: string
+          description: Enterprise application identifier
+
+        ApprovedJiraId:
+          title: Approved Jira ID
+          type: string
+          description: Approved Jira ticket
+
+        BusinessUnit:
+          title: Business Unit
+          type: string
+          description: Business Unit owning the application
+          enum:
+            - Retail
+            - Finance
+            - Platform
+            - Marketing
+
+        SupportTeam:
+          title: Support Team
+          type: string
+          description: Support team responsible for the application
+
+        CloudBudgetTicket:
+          title: Cloud Budget Ticket
+          type: string
+          description: Approved cloud budget ticket
+
+        DevGCPProjectId:
+          title: Dev GCP Project ID
+          type: string
+          pattern: '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+          default: devops-champ
+
+        QaGCPProjectId:
+          title: QA GCP Project ID
+          type: string
+          pattern: '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+          default: devops-champ
+
+        ProdGCPProjectId:
+          title: Production GCP Project ID
+          type: string
+          pattern: '^[a-z][a-z0-9-]{4,28}[a-z0-9]$'
+          default: devops-champ
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+        - .github/workflows/*
+        values:
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName | lower }}
+          AppId: ${{ parameters.AppId }}
+          ApprovedJiraId: ${{ parameters.ApprovedJiraId }}
+          BusinessUnit: ${{ parameters.BusinessUnit }}
+          SupportTeam: ${{ parameters.SupportTeam }}
+          CloudBudgetTicket: ${{ parameters.CloudBudgetTicket }}
+          DevGCPProjectId: ${{ parameters.DevGCPProjectId }}
+          QaGCPProjectId: ${{ parameters.QaGCPProjectId }}
+          ProdGCPProjectId: ${{ parameters.ProdGCPProjectId }}
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
+        defaultBranch: main
+        repoVisibility: public
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+ 
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - user:default/guest
+        title: "Template executed"
+        info: "Java 25 repository has been created successfully"
+        severity: normal
+
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Sonar Dashboard
+        url: https://sonarcloud.io/project/overview?id=${{ parameters.repoName }}
+      - title: GitHub Actions
+        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions/workflows/ci.yml
