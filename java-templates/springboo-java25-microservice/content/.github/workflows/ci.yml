@@ -1,0 +1,644 @@
+name: CI/CD
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deployment_mode:
+        description: "Deployment Type"
+        type: choice
+        required: true
+        default: "ArgoCD (Image Deployment)"
+        options:
+          - Build Only
+          - Docker (Push Image)
+          - ArgoCD (Image Deployment)
+
+jobs:
+
+  # ==========================
+  # SET VERSION
+  # ==========================
+
+  setversion:
+    runs-on: ubuntu-latest
+
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Read and Bump Version
+        id: bump
+        run: |
+          VERSION=$(mvn help:evaluate \
+            -Dexpression=project.version \
+            -q \
+            -DforceStdout)
+
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+          mvn versions:set \
+            -DnewVersion=${NEW_VERSION} \
+            -DgenerateBackupPoms=false
+
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Upload Updated Pom
+        uses: actions/upload-artifact@v5
+        with:
+          name: updated-pom
+          path: pom.xml
+
+  # ==========================
+  # CREATE TAG
+  # ==========================
+
+  create-tag:
+    runs-on: ubuntu-latest
+
+    needs: setversion
+
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Create Git Tag
+        run: |
+          VERSION="${{ needs.setversion.outputs.new_version }}"
+          TAG="v${VERSION}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists."
+            exit 0
+          fi
+
+          git tag "$TAG"
+          git push origin "$TAG"
+
+  # ==========================
+  # BUILD
+  # ==========================
+
+  build:
+    runs-on: ubuntu-latest
+    needs: setversion
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - run: mvn clean verify
+
+      - name: Upload Jar
+        uses: actions/upload-artifact@v5
+        with:
+          name: app-jar
+          path: target/*.jar
+
+  # ==========================
+  # SONAR
+  # ==========================
+
+  sonar:
+    runs-on: ubuntu-latest
+    needs:
+      - setversion
+      - build
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Verify Sonar Token
+        env:
+          SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "SONAR_TOKEN is missing"
+            exit 1
+          fi
+
+      - name: Create Sonar Project If Missing
+        env:
+          SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
+        run: |
+          PROJECT_KEY="devops-champ_${{ github.event.repository.name }}"
+
+          curl -u "${SONAR_TOKEN}:" \
+            -X POST \
+            "https://sonarcloud.io/api/projects/create" \
+            -d "organization=devops-champ" \
+            -d "project=${PROJECT_KEY}" \
+            -d "name=${PROJECT_KEY}"
+        continue-on-error: true
+
+      - name: Sonar Scan
+        env:
+          SONAR_TOKEN: ${{ secrets.GIT_SONAR_TOKEN }}
+        run: |
+          PROJECT_KEY="devops-champ_${{ github.event.repository.name }}"
+
+          mvn clean verify sonar:sonar \
+            -Dsonar.projectKey=${PROJECT_KEY} \
+            -Dsonar.organization=devops-champ \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=$SONAR_TOKEN
+
+  # ==========================
+  # DOCKER BUILD
+  # ==========================
+
+  docker:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - build
+      - sonar
+      - create-tag
+
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download Jar
+        uses: actions/download-artifact@v5
+        with:
+          name: app-jar
+          path: target
+
+      - name: Build Docker Image
+        run: |
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME_1 }}/${{ github.event.repository.name }}
+
+          docker build \
+            -t $IMAGE:${VERSION} \
+            -t $IMAGE:latest .
+
+      - name: Verify Docker Images
+        run: |
+          docker images
+
+      - name: Save Docker Image
+        run: |
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME_1 }}/${{ github.event.repository.name }}
+
+          docker save \
+            -o image.tar \
+            $IMAGE:${VERSION} \
+            $IMAGE:latest
+
+      - name: Verify Saved Image
+        run: |
+          ls -lh image.tar
+
+      - name: Upload Docker Image
+        uses: actions/upload-artifact@v5
+        with:
+          name: docker-image
+          path: image.tar
+
+  # ==========================
+  # DEPLOY
+  # ==========================
+
+  deploy:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - docker
+
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download Docker Image
+        uses: actions/download-artifact@v5
+        with:
+          name: docker-image
+
+      - name: Load Docker Image
+        run: |
+          docker load -i image.tar
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME_1 }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_1 }}
+
+      - name: Verify Docker Images
+        run: |
+          docker images
+
+      - name: Push Docker Image
+        run: |
+          IMAGE=${{ secrets.DOCKERHUB_USERNAME_1 }}/${{ github.event.repository.name }}
+
+          docker push $IMAGE:${VERSION}
+          docker push $IMAGE:latest
+          
+  # ==========================
+  # UPDATE APP HELM VALUES (COMBINED WITH POM COMMIT)
+  # ==========================
+
+  update-app-helm:
+    runs-on: ubuntu-latest
+    needs:
+      - setversion
+      - deploy
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'Docker (Push Image)' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - name: Install yq
+        run: |
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update helm/app/values.yaml tag
+        run: |
+          VALUES_FILE="helm/app/values.yaml"
+          if [ -f "$VALUES_FILE" ]; then
+            yq -i '.image.tag = env(VERSION)' "$VALUES_FILE"
+            echo "Successfully updated $VALUES_FILE tag to ${VERSION}"
+          elif [ -f "helm/app/values.yaml" ]; then
+            yq -i '.image.tag = env(VERSION)' "helm/app/values.yaml"
+            echo "Successfully updated helm/app/values.yaml tag to ${VERSION}"
+          else
+            echo "Error: values.yaml not found!"
+            exit 1
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Commit and Push Pom and Helm Changes
+        run: |
+          git pull --rebase origin main || true
+          git add pom.xml helm/app/values.yaml || true
+          git commit -m "chore: bump version to ${VERSION} and update helm tag" || echo "No changes to commit"
+          git push origin main
+
+  # ==========================
+  # UPDATE-GITOPS
+  # ==========================
+
+  update-gitops:
+    runs-on: ubuntu-latest
+    needs:
+      - setversion
+      - deploy
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+    steps:
+      - name: Checkout GitOps Repository
+        uses: actions/checkout@v5
+        with:
+          repository: backstage2k26-cpu/gitops-nonprod
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+
+      - name: Install yq
+        run: |
+          sudo wget \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+            -O /usr/local/bin/yq
+
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update values-dev.yaml and Application File
+        run: |
+          set -e
+
+          cd gitops
+
+          REPO_NAME="${{ github.event.repository.name }}"
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME_1 }}/${REPO_NAME}"
+
+          echo "Searching and updating correct values file path..."
+          
+          if [ -f "${REPO_NAME}/values/values-dev.yaml" ]; then
+            TARGET_PATH="${REPO_NAME}/values/values-dev.yaml"
+          elif [ -f "helm/values/values-dev.yaml" ]; then
+            TARGET_PATH="helm/values/values-dev.yaml"
+          else
+            TARGET_PATH="helm/values/values-dev.yaml"
+            mkdir -p "$(dirname "$TARGET_PATH")"
+          fi
+
+          # 1. Update image repository and tag in values file
+          yq -i '
+            .image.repository = "'"${IMAGE}"'" |
+            .image.tag = "'"${{ env.VERSION }}"'"
+          ' "$TARGET_PATH"
+
+          # 2. Update ArgoCD Application File (targetRevisions & repoURL)
+          APP_FILE="${REPO_NAME}/applications/${REPO_NAME}-dev.yaml"
+          if [ ! -f "$APP_FILE" ]; then
+            APP_FILE="helm-deploy/${REPO_NAME}-dev.yaml" || true
+          fi
+
+          echo "Checking and updating application configuration at ${APP_FILE}..."
+          if [ -f "$APP_FILE" ]; then
+            yq -i '
+              .spec.sources[0].repoURL = "https://github.com/devops-champ/'"${REPO_NAME}"'.git" |
+              .spec.sources[].targetRevision = "'"${{ env.VERSION }}"'"
+            ' "$APP_FILE" || true
+            echo "Successfully updated all targetRevisions to ${{ env.VERSION }} in ${APP_FILE}"
+          else
+            echo "Warning: Application file not found at expected path."
+          fi
+
+      - name: Verify GitHub CLI
+        run: gh --version
+        
+      - name: Get Jira ID from PR Title
+        id: jira
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_TITLE=$(gh api \
+            repos/${{ github.repository }}/commits/${{ github.sha }}/pulls \
+            -H "Accept: application/vnd.github+json" \
+            --jq '.[0].title')
+
+          echo "PR Title: $PR_TITLE"
+
+          JIRA=$(echo "$PR_TITLE" | grep -oE 'CORE-[0-9]+')
+
+          if [ -z "$JIRA" ]; then
+            echo "No Jira ID found in PR title."
+            exit 1
+          fi
+
+          echo "jira=$JIRA" >> "$GITHUB_OUTPUT"
+
+      - name: Commit Changes with Jira Number
+        run: |
+          set -e
+
+          cd gitops
+
+          COMMIT_MSG="${{ steps.jira.outputs.jira }} Update image tag to ${{ env.VERSION }}"
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+
+          if git diff --cached --quiet; then
+            echo "No GitOps changes detected."
+          else
+            git commit -m "$COMMIT_MSG"
+          fi
+
+      - name: Push Changes
+        run: |
+          set -e
+
+          cd gitops
+          git push origin main
+
+  # ==========================
+  # ARGOCD DEPLOY
+  # ==========================
+
+  argocd:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - deploy
+      - update-gitops
+
+    if: |
+      github.event_name == 'push' ||
+      inputs.deployment_mode == 'ArgoCD (Image Deployment)'
+
+    env:
+      VERSION: ${{ needs.setversion.outputs.new_version }}
+      ARGOCD_APP_NAME: ${{ github.event.repository.name }}-dev
+      ARGOCD_INSECURE: ${{ vars.ARGOCD_INSECURE || 'true' }}
+      ARGOCD_PLAINTEXT: ${{ vars.ARGOCD_PLAINTEXT || 'true' }}
+
+    steps:
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+      - name: Verify ArgoCD Application
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          ARGOCD_FLAGS=(
+            --server "${ARGOCD_SERVER}"
+            --auth-token "${ARGOCD_AUTH_TOKEN}"
+            --grpc-web
+          )
+
+          if [ "${ARGOCD_INSECURE}" = "true" ]; then
+            ARGOCD_FLAGS+=(--insecure)
+          fi
+
+          if [ "${ARGOCD_PLAINTEXT}" = "true" ]; then
+            ARGOCD_FLAGS+=(--plaintext)
+          fi
+
+          echo "Checking application..."
+
+          argocd app get "${ARGOCD_APP_NAME}" "${ARGOCD_FLAGS[@]}"
+
+          echo "Waiting up to 2 minutes for sync..."
+
+          argocd app wait "${ARGOCD_APP_NAME}" \
+            "${ARGOCD_FLAGS[@]}" \
+            --sync \
+            --health \
+            --timeout 120
+
+          echo "Deployment synchronized successfully."
+
+      - name: Get ArgoCD Status
+        id: status
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN || secrets.ARGOCD_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          ARGOCD_FLAGS=(
+            --server "${ARGOCD_SERVER}"
+            --auth-token "${ARGOCD_AUTH_TOKEN}"
+            --grpc-web
+          )
+
+          if [ "${ARGOCD_INSECURE}" = "true" ]; then
+            ARGOCD_FLAGS+=(--insecure)
+          fi
+
+          if [ "${ARGOCD_PLAINTEXT}" = "true" ]; then
+            ARGOCD_FLAGS+=(--plaintext)
+          fi
+
+          STATUS_JSON=$(argocd app get "${ARGOCD_APP_NAME}" \
+            "${ARGOCD_FLAGS[@]}" \
+            --output json)
+
+          SYNC_STATUS=$(echo "$STATUS_JSON" | jq -r '.status.sync.status')
+          HEALTH_STATUS=$(echo "$STATUS_JSON" | jq -r '.status.health.status')
+          REVISIONS=$(echo "$STATUS_JSON" | jq -r '.status.sync.revisions | join(", ")')
+          APP_URL=$(echo "$STATUS_JSON" | jq -r '.status.summary.externalURLs[0] // ""')
+
+          echo "sync_status=${SYNC_STATUS}" >> $GITHUB_OUTPUT
+          echo "health_status=${HEALTH_STATUS}" >> $GITHUB_OUTPUT
+          echo "revision=${REVISIONS}" >> $GITHUB_OUTPUT
+          echo "app_url=${APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: ArgoCD Deployment Summary
+        if: always()
+        run: |
+          {
+            echo "## 🚀 ArgoCD Deployment"
+            echo
+            echo "| Field | Value |"
+            echo "|------|-------|"
+            echo "| Application | ${ARGOCD_APP_NAME} |"
+            echo "| Version | ${VERSION} |"
+            echo "| Sync | ${{ steps.status.outputs.sync_status }} |"
+            echo "| Health | ${{ steps.status.outputs.health_status }} |"
+            echo "| Revisions | ${{ steps.status.outputs.revision }} |"
+
+            if [ -n "${{ steps.status.outputs.app_url }}" ]; then
+              echo "| URL | ${{ steps.status.outputs.app_url }} |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ==========================
+  # COMMIT VERSION (BUILD ONLY)
+  # ==========================
+
+  commit-version-build:
+    runs-on: ubuntu-latest
+
+    needs:
+      - setversion
+      - sonar
+
+    if: inputs.deployment_mode == 'Build Only'
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download Updated Pom
+        uses: actions/download-artifact@v5
+        with:
+          name: updated-pom
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+      - name: Commit Updated Version
+        run: |
+          git pull --rebase origin main || true
+          git add pom.xml
+
+          git commit \
+            -m "chore: bump version to ${{ needs.setversion.outputs.new_version }}" \
+            || echo "No version changes"
+
+          git push origin main

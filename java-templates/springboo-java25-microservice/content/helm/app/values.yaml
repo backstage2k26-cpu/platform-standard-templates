@@ -1,0 +1,76 @@
+replicaCount: 1
+
+image:
+  repository: docker.io/backstage2026/${{ values.repoName }}
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+springProfile: dev
+
+serviceAccount:
+  create: true
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+httpRoute:
+  enabled: true
+  name: ${{ values.repoName }}-dev-route
+  namespace: ${{ values.repoName }}-dev
+  parentRefs:
+    - name: backstage-gateway
+      namespace: gateway-system
+  matches:
+    - path:
+        type: PathPrefix
+        value: /${{ values.repoName }}-dev
+  filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /
+  backendRefs:
+    - name: ${{ values.repoName }}-dev
+      port: 80
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

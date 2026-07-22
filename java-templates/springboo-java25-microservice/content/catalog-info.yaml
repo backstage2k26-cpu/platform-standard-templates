@@ -1,0 +1,36 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.repoName }}
+  description: Sample service with CI/CD
+  annotations:
+    devlake.io/project-name: ${{ values.repoName }}
+    github.com/project-slug: ${{ values.repoOwner }}/${{ values.repoName }}
+    backstage.io/techdocs-ref: dir:.
+    sonarqube.org/project-key: devops-champ_${{ values.repoName }}
+    roadie-backstage-pull-requests/default-filter: "is:open is:pr"
+    platform.io/argocd-dev: ${{ values.repoName }}-dev
+    platform.io/argocd-qa: ${{ values.repoName }}-qa
+    platform.io/argocd-prod: ${{ values.repoName }}-prod
+    grafana/log-namespace: ${{ values.repoName }}-dev
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/platform-team
+  dependsOn:
+    - resource:default/orders-db
+    - resource:default/kafka-cluster
+  platform:
+    AppId: ${{ values.AppId }}
+    ApprovedJiraId: ${{ values.ApprovedJiraId }}
+    BusinessUnit: ${{ values.BusinessUnit }}
+    SupportTeam: ${{ values.SupportTeam }}
+    CloudBudgetTicket: ${{ values.CloudBudgetTicket }}
+  infrastructure:
+    environments:
+      - name: dev
+        projectId: ${{ values.DevGCPProjectId }}
+      - name: qa
+        projectId: ${{ values.QaGCPProjectId }}
+      - name: prod  
+        projectId: ${{ values.ProdGCPProjectId }}
