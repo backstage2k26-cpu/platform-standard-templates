@@ -133,7 +133,7 @@ jobs:
       - name: Upload Jar
         uses: actions/upload-artifact@v5
         with:
-          name: ${{ values.repoName }}.jar
+          name: ${{ github.event.repository.name }}.jar
           path: target/*.jar
 
   # ==========================
