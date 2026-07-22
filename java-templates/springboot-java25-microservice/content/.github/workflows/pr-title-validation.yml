@@ -19,9 +19,9 @@ jobs:
 
           echo "PR Title: $TITLE"
 
-          if [[ ! "$TITLE" =~ ^(CORE|DEVOPS|OPS)-[0-9]+\ .+ ]]; then
+          if [[ ! "$TITLE" =~ ^(CORE|DEVOPS|OPS|JIRA)-[0-9]+\ .+ ]]; then
           echo "::error::Invalid PR title."
-          echo "::error::Expected format: CORE-1234 or DEVOPS-45 or OPS-44"
+          echo "::error::Expected format: CORE-1234 or DEVOPS-45 or OPS-44 or JIRA-123"
           exit 1
           fi
 
