@@ -122,6 +122,7 @@ spec:
         repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
         defaultBranch: main
         repoVisibility: public
+        gitCommitMessage: "${{ parameters.ApprovedJiraId }} : ${{ parameters.repoName | lower }} repository setup"
 
     - id: register
       name: Register in Catalog
