@@ -3,6 +3,13 @@ kind: Component
 metadata:
   name: ${{ values.repoName }}
   description: Sample service with CI/CD
+  links:
+  - url: http://35.207.209.61/${{ values.repoName }}-dev/actuator/health
+    title: ${{ values.repoName }}-dev
+    icon: web
+  - url: http://34.180.34.240/
+    title: Grafana Dashboard
+    icon: dashboard
   annotations:
     devlake.io/project-name: ${{ values.repoName }}
     github.com/project-slug: ${{ values.repoOwner }}/${{ values.repoName }}
