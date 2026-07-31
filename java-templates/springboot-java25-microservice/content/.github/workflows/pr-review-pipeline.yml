@@ -116,8 +116,8 @@ jobs:
             echo "SONAR_TOKEN is missing"
             exit 1
           fi
-
-          mvn clean verify sonar:sonar \
+          mvn -B clean verify \
+            org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.projectKey="$PROJECT_KEY" \
             -Dsonar.organization=devops-champ \
             -Dsonar.host.url=https://sonarcloud.io \
