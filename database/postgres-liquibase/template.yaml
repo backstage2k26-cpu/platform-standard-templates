@@ -3,7 +3,7 @@ kind: Template
 
 metadata:
   name: postgres-liquibase
-  title: Liquibase PostgreSQL Template
+  title: PostgreSQL Liquibase Template
   description: Create a PostgreSQL Liquibase repository with GitHub Actions
   tags:
     - liquibase
@@ -17,7 +17,6 @@ spec:
 
   parameters:
     - title: Repository Details
-
       required:
         - repoOwner
         - repoName
@@ -32,11 +31,11 @@ spec:
         - ProdGCPProjectId
 
       properties:
-
         repoOwner:
           title: Repository Owner
           type: string
           default: devops-champ
+          ui:autofocus: true
 
         repoName:
           title: Repository Name
@@ -92,7 +91,7 @@ spec:
           default: devops-champ
 
         DatabaseName:
-          title: PostgreSQL Database
+          title: Database Name
           type: string
           default: postgres
 
@@ -107,7 +106,6 @@ spec:
           default: liquibase/liquibase:latest
 
   steps:
-
     - id: fetch-base
       name: Fetch Base
       action: fetch:template
@@ -116,26 +114,23 @@ spec:
         copyWithoutTemplating:
           - .github/workflows/*
         values:
-
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName | lower }}
-
+          owner: ${{ parameters.owner }}
           AppId: ${{ parameters.AppId }}
           ApprovedJiraId: ${{ parameters.ApprovedJiraId }}
           BusinessUnit: ${{ parameters.BusinessUnit }}
           SupportTeam: ${{ parameters.SupportTeam }}
           CloudBudgetTicket: ${{ parameters.CloudBudgetTicket }}
-
           DevGCPProjectId: ${{ parameters.DevGCPProjectId }}
           QaGCPProjectId: ${{ parameters.QaGCPProjectId }}
           ProdGCPProjectId: ${{ parameters.ProdGCPProjectId }}
-
           DatabaseName: ${{ parameters.DatabaseName }}
           DatabaseSchema: ${{ parameters.DatabaseSchema }}
           LiquibaseImage: ${{ parameters.LiquibaseImage }}
 
     - id: publish
-      name: Publish Repository
+      name: Publish to GitHub
       action: publish:github
       input:
         repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
@@ -157,20 +152,18 @@ spec:
         recipients: entity
         entityRefs:
           - user:default/guest
-        title: Liquibase Repository Created
-        info: PostgreSQL Liquibase repository has been created successfully.
+        title: Template executed
+        info: Liquibase repository has been created successfully.
         severity: normal
 
-output:
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}
 
-  links:
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
 
-    - title: Repository
-      url: ${{ steps.publish.output.remoteUrl }}
-
-    - title: Open in Catalog
-      icon: catalog
-      entityRef: ${{ steps.register.output.entityRef }}
-
-    - title: GitHub Actions
-      url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions
+      - title: GitHub Actions
+        url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions
