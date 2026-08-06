@@ -1,37 +1,47 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
+
 metadata:
-  name: postgres-liquibase-template
-  title: PostgreSQL Liquibase Template
-  description: Create a PostgreSQL schema migration repository with Docker and Argo CD deployment manifests
+  name: liquibase-postgresql
+  title: Liquibase PostgreSQL Template
+  description: Create a PostgreSQL Liquibase repository with GitHub Actions
   tags:
-    - postgres
-    - postgresql
     - liquibase
+    - postgresql
     - database
-    - argocd
+    - github-actions
+
 spec:
   owner: user:default/guest
-  type: resource
+  type: service
 
   parameters:
     - title: Repository Details
+
       required:
         - repoOwner
         - repoName
         - owner
+        - AppId
+        - ApprovedJiraId
+        - BusinessUnit
+        - SupportTeam
+        - CloudBudgetTicket
+        - DevGCPProjectId
+        - QaGCPProjectId
+        - ProdGCPProjectId
+
       properties:
+
         repoOwner:
           title: Repository Owner
           type: string
-          description: GitHub organization or username
           default: devops-champ
-          ui:autofocus: true
 
         repoName:
           title: Repository Name
           type: string
-          description: Name of the GitHub repository (lowercase recommended)
+          pattern: '^[a-z0-9-]+$'
 
         owner:
           title: Team Owner
@@ -41,30 +51,63 @@ spec:
             allowedKinds:
               - Group
 
-    - title: Database Details
-      required:
-        - databaseName
-        - schemaName
-      properties:
-        databaseName:
-          title: Database Name
+        AppId:
+          title: Application ID
           type: string
-          description: Target PostgreSQL database name
-          default: appdb
 
-        schemaName:
-          title: Schema Name
+        ApprovedJiraId:
+          title: Approved Jira ID
           type: string
-          description: PostgreSQL schema managed by Liquibase
-          default: app
 
-        imageRegistry:
-          title: Image Registry
+        BusinessUnit:
+          title: Business Unit
           type: string
-          description: Container registry used by Argo CD deployments
-          default: ghcr.io/devops-champ
+          enum:
+            - Retail
+            - Finance
+            - Platform
+            - Marketing
+
+        SupportTeam:
+          title: Support Team
+          type: string
+
+        CloudBudgetTicket:
+          title: Cloud Budget Ticket
+          type: string
+
+        DevGCPProjectId:
+          title: Dev GCP Project ID
+          type: string
+          default: devops-champ
+
+        QaGCPProjectId:
+          title: QA GCP Project ID
+          type: string
+          default: devops-champ
+
+        ProdGCPProjectId:
+          title: Production GCP Project ID
+          type: string
+          default: devops-champ
+
+        DatabaseName:
+          title: PostgreSQL Database
+          type: string
+          default: postgres
+
+        DatabaseSchema:
+          title: Database Schema
+          type: string
+          default: public
+
+        LiquibaseImage:
+          title: Liquibase Docker Image
+          type: string
+          default: liquibase/liquibase:latest
 
   steps:
+
     - id: fetch-base
       name: Fetch Base
       action: fetch:template
@@ -73,20 +116,32 @@ spec:
         copyWithoutTemplating:
           - .github/workflows/*
         values:
+
           repoOwner: ${{ parameters.repoOwner }}
           repoName: ${{ parameters.repoName | lower }}
-          owner: ${{ parameters.owner }}
-          databaseName: ${{ parameters.databaseName }}
-          schemaName: ${{ parameters.schemaName }}
-          imageRegistry: ${{ parameters.imageRegistry }}
+
+          AppId: ${{ parameters.AppId }}
+          ApprovedJiraId: ${{ parameters.ApprovedJiraId }}
+          BusinessUnit: ${{ parameters.BusinessUnit }}
+          SupportTeam: ${{ parameters.SupportTeam }}
+          CloudBudgetTicket: ${{ parameters.CloudBudgetTicket }}
+
+          DevGCPProjectId: ${{ parameters.DevGCPProjectId }}
+          QaGCPProjectId: ${{ parameters.QaGCPProjectId }}
+          ProdGCPProjectId: ${{ parameters.ProdGCPProjectId }}
+
+          DatabaseName: ${{ parameters.DatabaseName }}
+          DatabaseSchema: ${{ parameters.DatabaseSchema }}
+          LiquibaseImage: ${{ parameters.LiquibaseImage }}
 
     - id: publish
-      name: Publish to GitHub
+      name: Publish Repository
       action: publish:github
       input:
         repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
         defaultBranch: main
         repoVisibility: public
+        gitCommitMessage: "${{ parameters.ApprovedJiraId }} : Liquibase repository setup"
 
     - id: register
       name: Register in Catalog
@@ -102,14 +157,20 @@ spec:
         recipients: entity
         entityRefs:
           - user:default/guest
-        title: "Template executed"
-        info: "PostgreSQL Liquibase repository has been created successfully"
+        title: Liquibase Repository Created
+        info: PostgreSQL Liquibase repository has been created successfully.
         severity: normal
 
-  output:
-    links:
-      - title: Repository
-        url: ${{ steps.publish.output.remoteUrl }}
-      - title: Open in Catalog
-        icon: catalog
-        entityRef: ${{ steps.register.output.entityRef }}
+output:
+
+  links:
+
+    - title: Repository
+      url: ${{ steps.publish.output.remoteUrl }}
+
+    - title: Open in Catalog
+      icon: catalog
+      entityRef: ${{ steps.register.output.entityRef }}
+
+    - title: GitHub Actions
+      url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions

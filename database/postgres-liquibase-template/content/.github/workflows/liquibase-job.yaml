@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+
+metadata:
+  name: liquibase-update
+  namespace: liquibase
+
+spec:
+  backoffLimit: 0
+
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+      - name: dockerhub-secret
+
+      containers:
+      - name: liquibase
+
+        image: liquibase/liquibase:latest
+
+        imagePullPolicy: Always
+
+        env:
+        - name: DB_URL
+          valueFrom:
+            secretKeyRef:
+              name: liquibase-db-secret
+              key: DB_URL
+
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: liquibase-db-secret
+              key: DB_USERNAME
+
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: liquibase-db-secret
+              key: DB_PASSWORD
+        command:
+          - /bin/sh
+          - -c
+
+        args:
+          - |
+            liquibase \
+              --defaultsFile=/liquibase/liquibase.properties \
+              --searchPath=/liquibase \
+              --url="$DB_URL" \
+              --username="$DB_USERNAME" \
+              --password="$DB_PASSWORD" \
+              --changeLogFile=changelog/db.changelog-master.xml \
+              update	
