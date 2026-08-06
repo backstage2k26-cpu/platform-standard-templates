@@ -2,7 +2,357 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 
 metadata:
-  name: liquibase-postgresql
+  name: apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+
+metadata: postgres-liquibase-template
+  name: apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+
+metadata:
+  name: 
+  title: Liquibase PostgreSQL Template
+  description: Create a PostgreSQL Liquibase repository with GitHub Actions
+  tags:
+    - liquibase
+    - postgresql
+    - database
+    - github-actions
+
+spec:
+  owner: user:default/guest
+  type: service
+
+  parameters:
+    - title: Repository Details
+
+      required:
+        - repoOwner
+        - repoName
+        - owner
+        - AppId
+        - ApprovedJiraId
+        - BusinessUnit
+        - SupportTeam
+        - CloudBudgetTicket
+        - DevGCPProjectId
+        - QaGCPProjectId
+        - ProdGCPProjectId
+
+      properties:
+
+        repoOwner:
+          title: Repository Owner
+          type: string
+          default: devops-champ
+
+        repoName:
+          title: Repository Name
+          type: string
+          pattern: '^[a-z0-9-]+$'
+
+        owner:
+          title: Team Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+
+        AppId:
+          title: Application ID
+          type: string
+
+        ApprovedJiraId:
+          title: Approved Jira ID
+          type: string
+
+        BusinessUnit:
+          title: Business Unit
+          type: string
+          enum:
+            - Retail
+            - Finance
+            - Platform
+            - Marketing
+
+        SupportTeam:
+          title: Support Team
+          type: string
+
+        CloudBudgetTicket:
+          title: Cloud Budget Ticket
+          type: string
+
+        DevGCPProjectId:
+          title: Dev GCP Project ID
+          type: string
+          default: devops-champ
+
+        QaGCPProjectId:
+          title: QA GCP Project ID
+          type: string
+          default: devops-champ
+
+        ProdGCPProjectId:
+          title: Production GCP Project ID
+          type: string
+          default: devops-champ
+
+        DatabaseName:
+          title: PostgreSQL Database
+          type: string
+          default: postgres
+
+        DatabaseSchema:
+          title: Database Schema
+          type: string
+          default: public
+
+        LiquibaseImage:
+          title: Liquibase Docker Image
+          type: string
+          default: liquibase/liquibase:latest
+
+  steps:
+
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/*
+        values:
+
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName | lower }}
+
+          AppId: ${{ parameters.AppId }}
+          ApprovedJiraId: ${{ parameters.ApprovedJiraId }}
+          BusinessUnit: ${{ parameters.BusinessUnit }}
+          SupportTeam: ${{ parameters.SupportTeam }}
+          CloudBudgetTicket: ${{ parameters.CloudBudgetTicket }}
+
+          DevGCPProjectId: ${{ parameters.DevGCPProjectId }}
+          QaGCPProjectId: ${{ parameters.QaGCPProjectId }}
+          ProdGCPProjectId: ${{ parameters.ProdGCPProjectId }}
+
+          DatabaseName: ${{ parameters.DatabaseName }}
+          DatabaseSchema: ${{ parameters.DatabaseSchema }}
+          LiquibaseImage: ${{ parameters.LiquibaseImage }}
+
+    - id: publish
+      name: Publish Repository
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
+        defaultBranch: main
+        repoVisibility: public
+        gitCommitMessage: "${{ parameters.ApprovedJiraId }} : Liquibase repository setup"
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - user:default/guest
+        title: Liquibase Repository Created
+        info: PostgreSQL Liquibase repository has been created successfully.
+        severity: normal
+
+output:
+
+  links:
+
+    - title: Repository
+      url: ${{ steps.publish.output.remoteUrl }}
+
+    - title: Open in Catalog
+      icon: catalog
+      entityRef: ${{ steps.register.output.entityRef }}
+
+    - title: GitHub Actions
+      url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions
+  title: Liquibase PostgreSQL Template
+  description: Create a PostgreSQL Liquibase repository with GitHub Actions
+  tags:
+    - liquibase
+    - postgresql
+    - database
+    - github-actions
+
+spec:
+  owner: user:default/guest
+  type: service
+
+  parameters:
+    - title: Repository Details
+
+      required:
+        - repoOwner
+        - repoName
+        - owner
+        - AppId
+        - ApprovedJiraId
+        - BusinessUnit
+        - SupportTeam
+        - CloudBudgetTicket
+        - DevGCPProjectId
+        - QaGCPProjectId
+        - ProdGCPProjectId
+
+      properties:
+
+        repoOwner:
+          title: Repository Owner
+          type: string
+          default: devops-champ
+
+        repoName:
+          title: Repository Name
+          type: string
+          pattern: '^[a-z0-9-]+$'
+
+        owner:
+          title: Team Owner
+          type: string
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds:
+              - Group
+
+        AppId:
+          title: Application ID
+          type: string
+
+        ApprovedJiraId:
+          title: Approved Jira ID
+          type: string
+
+        BusinessUnit:
+          title: Business Unit
+          type: string
+          enum:
+            - Retail
+            - Finance
+            - Platform
+            - Marketing
+
+        SupportTeam:
+          title: Support Team
+          type: string
+
+        CloudBudgetTicket:
+          title: Cloud Budget Ticket
+          type: string
+
+        DevGCPProjectId:
+          title: Dev GCP Project ID
+          type: string
+          default: devops-champ
+
+        QaGCPProjectId:
+          title: QA GCP Project ID
+          type: string
+          default: devops-champ
+
+        ProdGCPProjectId:
+          title: Production GCP Project ID
+          type: string
+          default: devops-champ
+
+        DatabaseName:
+          title: PostgreSQL Database
+          type: string
+          default: postgres
+
+        DatabaseSchema:
+          title: Database Schema
+          type: string
+          default: public
+
+        LiquibaseImage:
+          title: Liquibase Docker Image
+          type: string
+          default: liquibase/liquibase:latest
+
+  steps:
+
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./content
+        copyWithoutTemplating:
+          - .github/workflows/*
+        values:
+
+          repoOwner: ${{ parameters.repoOwner }}
+          repoName: ${{ parameters.repoName | lower }}
+
+          AppId: ${{ parameters.AppId }}
+          ApprovedJiraId: ${{ parameters.ApprovedJiraId }}
+          BusinessUnit: ${{ parameters.BusinessUnit }}
+          SupportTeam: ${{ parameters.SupportTeam }}
+          CloudBudgetTicket: ${{ parameters.CloudBudgetTicket }}
+
+          DevGCPProjectId: ${{ parameters.DevGCPProjectId }}
+          QaGCPProjectId: ${{ parameters.QaGCPProjectId }}
+          ProdGCPProjectId: ${{ parameters.ProdGCPProjectId }}
+
+          DatabaseName: ${{ parameters.DatabaseName }}
+          DatabaseSchema: ${{ parameters.DatabaseSchema }}
+          LiquibaseImage: ${{ parameters.LiquibaseImage }}
+
+    - id: publish
+      name: Publish Repository
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.repoOwner }}&repo=${{ parameters.repoName | lower }}
+        defaultBranch: main
+        repoVisibility: public
+        gitCommitMessage: "${{ parameters.ApprovedJiraId }} : Liquibase repository setup"
+
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+    - id: notify
+      name: Notify
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - user:default/guest
+        title: Liquibase Repository Created
+        info: PostgreSQL Liquibase repository has been created successfully.
+        severity: normal
+
+output:
+
+  links:
+
+    - title: Repository
+      url: ${{ steps.publish.output.remoteUrl }}
+
+    - title: Open in Catalog
+      icon: catalog
+      entityRef: ${{ steps.register.output.entityRef }}
+
+    - title: GitHub Actions
+      url: https://github.com/${{ parameters.repoOwner }}/${{ parameters.repoName }}/actions
   title: Liquibase PostgreSQL Template
   description: Create a PostgreSQL Liquibase repository with GitHub Actions
   tags:
