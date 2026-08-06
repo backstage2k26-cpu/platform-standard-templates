@@ -1,0 +1,144 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: liquibase/liquibase
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 8
+
+      ####################################################
+      # Read current version
+      ####################################################
+
+      - name: Read current version
+        id: version
+        run: |
+          VERSION=$(mvn help:evaluate \
+            -Dexpression=project.version \
+            -q \
+            -DforceStdout)
+
+          VERSION=${VERSION/-SNAPSHOT/}
+
+          echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
+
+      ####################################################
+      # Increment patch version
+      ####################################################
+
+      - name: Calculate next version
+        run: |
+
+          IFS='.' read MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          PATCH=$((PATCH+1))
+
+          NEXT_VERSION=$MAJOR.$MINOR.$PATCH
+
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+
+      ####################################################
+      # Update pom.xml
+      ####################################################
+
+      - name: Update pom version
+        run: |
+
+          mvn versions:set \
+            -DnewVersion=${NEXT_VERSION}
+
+          mvn versions:commit
+
+      ####################################################
+      # Build
+      ####################################################
+
+      - name: Maven Package
+        run: |
+          mvn clean package -B
+
+      ####################################################
+      # Docker Login
+      ####################################################
+
+      - name: Login DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      ####################################################
+      # Docker Build
+      ####################################################
+
+      - name: Build Docker Image
+        run: |
+
+          docker build \
+            -t ${IMAGE_NAME}:${NEXT_VERSION} .
+
+      ####################################################
+      # Push Image
+      ####################################################
+
+      - name: Push Docker Image
+        run: |
+
+          docker push ${IMAGE_NAME}:${NEXT_VERSION}
+
+      ####################################################
+      # Commit version bump
+      ####################################################
+
+      - name: Commit version
+        run: |
+
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+          git add pom.xml
+
+          git commit -m "Release ${NEXT_VERSION}" || echo "No changes"
+
+      ####################################################
+      # Push commit
+      ####################################################
+
+      - name: Push commit
+        run: |
+
+          git push origin main
+
+      ####################################################
+      # Create tag
+      ####################################################
+
+      - name: Create Tag
+        run: |
+
+          git tag v${NEXT_VERSION}
+
+          git push origin v${NEXT_VERSION}

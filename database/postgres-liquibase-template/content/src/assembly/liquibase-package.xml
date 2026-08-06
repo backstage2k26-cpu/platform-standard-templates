@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.3"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="
+          http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.3
+          https://maven.apache.org/xsd/assembly-1.1.3.xsd">
+
+
+    <id>liquibase</id>
+
+
+    <formats>
+
+        <format>tar.gz</format>
+
+    </formats>
+
+
+    <includeBaseDirectory>true</includeBaseDirectory>
+
+
+    <fileSets>
+
+
+            <fileSet>
+                <directory>${project.basedir}/changelog</directory>
+                <outputDirectory>changelog</outputDirectory>
+                <includes>
+                    <include>**/*</include>
+                </includes>
+            </fileSet>
+
+
+        <fileSet>
+
+            <directory>.</directory>
+
+            <includes>
+
+                <include>liquibase.properties</include>
+
+            </includes>
+
+            <outputDirectory>.</outputDirectory>
+
+        </fileSet>
+
+
+        <fileSet>
+
+            <directory>docker</directory>
+
+            <outputDirectory>docker</outputDirectory>
+
+        </fileSet>
+
+
+    </fileSets>
+
+
+</assembly>

@@ -1,52 +1,121 @@
-# ${{ values.repoName }}
+# Liquibase PostgreSQL
 
-PostgreSQL schema migrations managed with Liquibase.
+A simple Liquibase project for managing PostgreSQL database schema changes using Maven, Docker, and GitHub Actions.
 
-## Local validation
+## Overview
 
-Start PostgreSQL:
+This repository packages Liquibase migrations into a Docker image and publishes it automatically through GitHub Actions.
 
-```bash
-docker compose up -d postgres
+Pipeline flow:
+
+```
+Developer
+    │
+    ▼
+Git Push / Merge (main)
+    │
+    ▼
+Maven Build
+    │
+    ▼
+Package Liquibase Artifact
+    │
+    ▼
+Docker Build
+    │
+    ▼
+Push Image to Docker Hub
+    │
+    ▼
+Create Git Tag
 ```
 
-Run migrations:
+---
 
-```bash
-docker compose run --rm liquibase update
+## Project Structure
+
+```
+.
+├── changelog/
+│   ├── db.changelog-master.xml
+│   ├── user-changelog.xml
+│   └── *.yaml
+│
+├── docker/
+│   └── entrypoint.sh
+│
+├── scripts/
+│   ├── build.sh
+│   ├── push.sh
+│   └── version.sh
+│
+├── src/
+│   └── assembly/
+│       └── liquibase-package.xml
+│
+├── Dockerfile
+├── liquibase.properties
+├── pom.xml
+└── README.md
 ```
 
-Rollback the latest change set:
+---
 
-```bash
-docker compose run --rm liquibase rollback-count 1
+## Components
+
+### changelog/
+
+Contains all Liquibase changelog files.
+
+- `db.changelog-master.xml` – Master changelog
+- `user-changelog.xml` – User changes
+- YAML files – Liquibase configuration
+
+---
+
+### scripts/
+
+Helper scripts for:
+
+- Build
+- Push
+- Version generation
+
+---
+
+## GitHub Actions
+
+The CI workflow performs:
+
+1. Checkout source
+2. Build using Maven
+3. Build Docker image
+4. Push image to Docker Hub
+5. Create Git tag
+
+---
+
+## Docker Image
+
+Example image:
+
+```
+liquibase/liquibase:latest
 ```
 
-## Build the migration image
+Every successful merge to `main` produces a versioned Docker image.
 
-```bash
-docker build -t ${{ values.imageRegistry }}/${{ values.repoName }}:latest .
-```
+---
 
-The included GitHub Actions workflow publishes the image to GitHub Container Registry on pushes to `main`.
+## Requirements
 
-## Argo CD deployment
+- Java 8+
+- Maven
+- Docker
+- PostgreSQL
+- GitHub Actions
 
-The Helm chart in `helm/` creates a Kubernetes Job annotated as an Argo CD hook. Argo CD runs the Job during sync and removes the completed hook before the next sync.
 
-Create a database credentials secret in the target namespace:
+## Repository Purpose
 
-```bash
-kubectl create secret generic ${{ values.repoName }}-db \
-  --from-literal=url='jdbc:postgresql://postgres-postgresql:5432/${{ values.databaseName }}' \
-  --from-literal=username='postgres' \
-  --from-literal=password='change-me'
-```
-
-Install with Helm:
-
-```bash
-helm upgrade --install ${{ values.repoName }} ./helm \
-  --set image.repository=${{ values.imageRegistry }}/${{ values.repoName }} \
-  --set image.tag=latest
-```
+This project provides a reusable Liquibase Docker image that can be used in deployment pipelines to execute PostgreSQL database migrations in a consistent and automated manner.
