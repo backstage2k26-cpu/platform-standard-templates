@@ -2,7 +2,7 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 
 metadata:
-  name: postgres-liquibase-template
+  name: postgres-liquibase
   title: Liquibase PostgreSQL Template
   description: Create a PostgreSQL Liquibase repository with GitHub Actions
   tags:
