@@ -8,23 +8,31 @@ on:
 permissions:
   contents: write
 
-jobs:
-  deploy:
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  IMAGE_NAME: backstage2026/liquibase
 
+jobs:
+  ####################################################
+  # Stage 1: version
+  # Read current version and calculate next version
+  ####################################################
+  version:
     runs-on: ubuntu-latest
 
-    env:
-      IMAGE_NAME: liquibase/liquibase
+    outputs:
+      current_version: ${{ steps.version.outputs.current_version }}
+      next_version: ${{ steps.next.outputs.next_version }}
 
     steps:
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 8
@@ -44,12 +52,14 @@ jobs:
           VERSION=${VERSION/-SNAPSHOT/}
 
           echo "CURRENT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "current_version=$VERSION" >> $GITHUB_OUTPUT
 
       ####################################################
       # Increment patch version
       ####################################################
 
       - name: Calculate next version
+        id: next
         run: |
 
           IFS='.' read MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -59,6 +69,28 @@ jobs:
           NEXT_VERSION=$MAJOR.$MINOR.$PATCH
 
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+
+  ####################################################
+  # Stage 2: update-version
+  # Update pom.xml to the next version
+  ####################################################
+  update-version:
+    needs: version
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 8
 
       ####################################################
       # Update pom.xml
@@ -68,9 +100,44 @@ jobs:
         run: |
 
           mvn versions:set \
-            -DnewVersion=${NEXT_VERSION}
+            -DnewVersion=${{ needs.version.outputs.next_version }}
 
           mvn versions:commit
+
+      - name: Upload updated pom
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-pom
+          path: pom.xml
+
+  ####################################################
+  # Stage 3: build
+  # Build the artifact with the updated pom
+  ####################################################
+  build:
+    needs: [version, update-version]
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_VERSION: ${{ needs.version.outputs.next_version }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 8
+
+      - name: Download updated pom
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-pom
 
       ####################################################
       # Build
@@ -80,6 +147,30 @@ jobs:
         run: |
           mvn clean package -B
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: target
+
+  ####################################################
+  # Stage 4: docker
+  # Login, build and push the Docker image
+  ####################################################
+  docker:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_VERSION: ${{ needs.version.outputs.next_version }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
       ####################################################
       # Docker Login
       ####################################################
@@ -87,8 +178,8 @@ jobs:
       - name: Login DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME_1 }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_1 }}
 
       ####################################################
       # Docker Build
@@ -108,6 +199,29 @@ jobs:
         run: |
 
           docker push ${IMAGE_NAME}:${NEXT_VERSION}
+
+  ####################################################
+  # Stage 5: release
+  # Commit version bump, push commit and create tag
+  ####################################################
+  release:
+    needs: [version, docker]
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_VERSION: ${{ needs.version.outputs.next_version }}
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download updated pom
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-pom
 
       ####################################################
       # Commit version bump
