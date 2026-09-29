@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ${{ values.repoName }}-prod
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - environment: prod
+            valuesFile: deployment/prod/values/${{ values.repoName }}/values-prod.yaml
+  template:
+    metadata:
+      name: '{{values.environment}}-${{ values.repoName }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/${{ values.repoOwner }}/${{ values.repoName }}.git
+        targetRevision: HEAD
+        path: helm
+        helm:
+          valueFiles:
+            - '{{values.valuesFile}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

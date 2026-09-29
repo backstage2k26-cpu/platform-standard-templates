@@ -1,0 +1,6 @@
+replicaCount: 1
+
+image:
+  tag: dev
+
+springProfile: dev
