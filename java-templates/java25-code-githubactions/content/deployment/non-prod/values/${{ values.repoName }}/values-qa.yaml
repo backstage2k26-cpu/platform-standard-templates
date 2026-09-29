@@ -1,0 +1,6 @@
+replicaCount: 2
+
+image:
+  tag: qa
+
+springProfile: qa

@@ -12,14 +12,15 @@
     </parent>
 
     <groupId>com.gspann</groupId>
-    <artifactId>${{ values.repoName }}</artifactId>
-    <version>0.0.1</version>
-    <name>${{ values.repoName }}</name>
-    <description>${{ values.repoName }} Application</description>
+    <artifactId>ewrvbrg</artifactId>
+    <version>0.0.4</version>
+    <name>ewrvbrg</name>
+    <description>ewrvbrg Application</description>
 
     <properties>
         <java.version>25</java.version>
         <jacoco.version>0.8.13</jacoco.version>
+        <sonar.version>5.0.0.4389</sonar.version>
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
@@ -63,6 +64,11 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.version}</version>
             </plugin>
         </plugins>
     </build>
